@@ -1,0 +1,297 @@
+"""Deterministic investigation planner.
+
+Maps business investigation questions to structured, ordered investigation plans
+using explicit scenario definitions — no LLM required.
+
+Each scenario is a hand-authored sequence of InvestigationStep objects designed
+to gather the specific evidence needed to answer the question.
+
+The planner is deterministic: the same question always produces the same plan.
+"""
+
+import re
+import uuid
+from typing import List, Optional
+from src.investigation.models import (
+    InvestigationPlan,
+    InvestigationRequest,
+    InvestigationStep,
+)
+
+# ---------------------------------------------------------------------------
+# Keyword matchers for scenario detection
+# ---------------------------------------------------------------------------
+
+_CHURN_SPIKE_KEYWORDS = {
+    "cancellation", "cancellations", "cancel", "churn", "churned",
+    "unsubscribe", "unsubscribing", "terminated", "subscription",
+    "lost customers", "losing", "customers are",
+}
+
+
+def _matches_churn_spike(question: str) -> bool:
+    """Return True if the question is about customer cancellations or churn."""
+    tokens = set(re.findall(r"\b[a-z]+\b", question.lower()))
+    return bool(tokens & _CHURN_SPIKE_KEYWORDS)
+
+
+# ---------------------------------------------------------------------------
+# Scenario plan builders
+# ---------------------------------------------------------------------------
+
+def _build_churn_spike_plan(investigation_id: str, question: str) -> List[InvestigationStep]:
+    """Return the canonical ordered investigation steps for the churn-spike scenario."""
+    return [
+        InvestigationStep(
+            step_id="STEP-01",
+            objective="Establish monthly cancellation baseline and identify the anomaly window",
+            rationale=(
+                "Before investigating causes, we must confirm that an unusual spike exists "
+                "in the data and establish which months are affected versus the baseline period."
+            ),
+            tool_name="sql_investigation",
+            tool_input={
+                "query": (
+                    "SELECT strftime('%Y-%m', cancellation_date) AS churn_month, "
+                    "COUNT(*) AS total_cancellations "
+                    "FROM subscriptions "
+                    "WHERE cancellation_date IS NOT NULL "
+                    "GROUP BY churn_month "
+                    "ORDER BY churn_month ASC"
+                ),
+                "max_rows": 50,
+            },
+            expected_evidence_type="time_series_cancellations",
+            depends_on=[],
+        ),
+        InvestigationStep(
+            step_id="STEP-02",
+            objective="Segment cancellations by customer plan and region to find most impacted cohorts",
+            rationale=(
+                "If the spike disproportionately affects specific plan tiers (e.g. pro, enterprise) "
+                "or regions (e.g. EU-Central, US-East), it points to a systemic rather than random cause."
+            ),
+            tool_name="sql_investigation",
+            tool_input={
+                "query": (
+                    "SELECT c.plan, c.region, COUNT(s.subscription_id) AS cancelled_count "
+                    "FROM subscriptions s "
+                    "JOIN customers c ON s.customer_id = c.customer_id "
+                    "WHERE s.cancellation_date >= '2025-09-01' AND s.cancellation_date <= '2025-10-31' "
+                    "GROUP BY c.plan, c.region "
+                    "ORDER BY cancelled_count DESC"
+                ),
+                "max_rows": 50,
+            },
+            expected_evidence_type="segment_breakdown",
+            depends_on=["STEP-01"],
+        ),
+        InvestigationStep(
+            step_id="STEP-03",
+            objective="Inspect billing failure rates by month to detect payment processing anomalies",
+            rationale=(
+                "Billing failures can trigger automated account lockouts leading to frustration "
+                "and cancellation. A surge in billing failures correlated with the churn spike "
+                "would constitute strong supporting evidence."
+            ),
+            tool_name="sql_investigation",
+            tool_input={
+                "query": (
+                    "SELECT strftime('%Y-%m', event_date) AS month, "
+                    "COUNT(*) AS total_events, "
+                    "SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_events, "
+                    "ROUND(100.0 * SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) / COUNT(*), 2) "
+                    "AS failure_rate_pct "
+                    "FROM billing_events "
+                    "GROUP BY month "
+                    "ORDER BY month ASC"
+                ),
+                "max_rows": 50,
+            },
+            expected_evidence_type="billing_failure_time_series",
+            depends_on=[],
+        ),
+        InvestigationStep(
+            step_id="STEP-04",
+            objective="Inspect billing failure reasons focused on the cancellation cohort",
+            rationale=(
+                "By filtering billing failures specifically for customers who cancelled in "
+                "September-October, we can confirm the causal link between payment issues "
+                "and the churn decision."
+            ),
+            tool_name="sql_investigation",
+            tool_input={
+                "query": (
+                    "SELECT b.event_type, b.status, COUNT(*) AS event_count "
+                    "FROM billing_events b "
+                    "WHERE b.customer_id IN ("
+                    "  SELECT customer_id FROM subscriptions "
+                    "  WHERE cancellation_date >= '2025-09-01' "
+                    "  AND cancellation_reason IN ('payment_issue', 'unexpected_account_lockout', 'billing_discrepancy')"
+                    ") "
+                    "AND b.event_date >= '2025-09-01' "
+                    "GROUP BY b.event_type, b.status "
+                    "ORDER BY event_count DESC"
+                ),
+                "max_rows": 50,
+            },
+            expected_evidence_type="billing_cohort_breakdown",
+            depends_on=["STEP-03"],
+        ),
+        InvestigationStep(
+            step_id="STEP-05",
+            objective="Analyze support ticket volume and resolution time by month",
+            rationale=(
+                "An overloaded support queue with long resolution times during the spike period "
+                "would compound billing frustration and correlate with higher cancellation intent."
+            ),
+            tool_name="sql_investigation",
+            tool_input={
+                "query": (
+                    "SELECT strftime('%Y-%m', created_at) AS ticket_month, "
+                    "COUNT(*) AS total_tickets, "
+                    "SUM(CASE WHEN category IN ('billing','account_access') THEN 1 ELSE 0 END) "
+                    "AS billing_related_tickets, "
+                    "ROUND(AVG(CASE WHEN resolved_at IS NOT NULL "
+                    "THEN (julianday(resolved_at) - julianday(created_at)) * 24.0 END), 1) "
+                    "AS avg_resolution_hours "
+                    "FROM support_tickets "
+                    "GROUP BY ticket_month "
+                    "ORDER BY ticket_month ASC"
+                ),
+                "max_rows": 50,
+            },
+            expected_evidence_type="support_sla_time_series",
+            depends_on=[],
+        ),
+        InvestigationStep(
+            step_id="STEP-06",
+            objective="Identify product incidents on the billing service around the anomaly period",
+            rationale=(
+                "A production incident on the billing infrastructure is a candidate root cause "
+                "that could explain simultaneous billing failures and account lockouts."
+            ),
+            tool_name="sql_investigation",
+            tool_input={
+                "query": (
+                    "SELECT incident_id, incident_date, severity, service, description "
+                    "FROM product_incidents "
+                    "WHERE incident_date >= '2025-08-01' AND incident_date <= '2025-10-31' "
+                    "ORDER BY incident_date ASC"
+                ),
+                "max_rows": 20,
+            },
+            expected_evidence_type="incident_records",
+            depends_on=[],
+        ),
+        InvestigationStep(
+            step_id="STEP-07",
+            objective="Inspect software release events on the billing service around the anomaly window",
+            rationale=(
+                "A deployment preceding the incident may have introduced the regression. "
+                "Identifying the change type (refactor, feature, hotfix) and the service helps "
+                "confirm or rule out a release-induced regression."
+            ),
+            tool_name="sql_investigation",
+            tool_input={
+                "query": (
+                    "SELECT release_id, release_date, service, version, change_type "
+                    "FROM release_events "
+                    "WHERE release_date >= '2025-08-01' AND release_date <= '2025-10-31' "
+                    "ORDER BY release_date ASC"
+                ),
+                "max_rows": 20,
+            },
+            expected_evidence_type="release_records",
+            depends_on=[],
+        ),
+        InvestigationStep(
+            step_id="STEP-08",
+            objective="Search internal documentation for postmortem or runbook for the billing incident",
+            rationale=(
+                "Internal postmortems contain root-cause analysis and remediation steps that "
+                "confirm technical details not captured in structured database records."
+            ),
+            tool_name="document_retrieval",
+            tool_input={
+                "action": "search",
+                "query": "billing-gateway webhook",
+                "max_results": 10,
+            },
+            expected_evidence_type="document_search_matches",
+            depends_on=["STEP-06"],
+        ),
+        InvestigationStep(
+            step_id="STEP-09",
+            objective="Retrieve full postmortem document for the billing gateway incident",
+            rationale=(
+                "The full postmortem text provides complete technical root cause and remediation "
+                "information required to form a final evidence-backed recommendation."
+            ),
+            tool_name="document_retrieval",
+            tool_input={
+                "action": "get",
+                "document_id": "postmortem_inc_2025_002.md",
+            },
+            expected_evidence_type="document_full_text",
+            depends_on=["STEP-08"],
+        ),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Planner class
+# ---------------------------------------------------------------------------
+
+class InvestigationPlanner:
+    """Deterministic planner: maps a business question to a structured investigation plan.
+
+    The current implementation uses keyword-based scenario matching and explicitly
+    authored step sequences. No LLM is invoked.
+    """
+
+    SCENARIO_CHURN_SPIKE = "churn_spike_investigation"
+    SCENARIO_UNKNOWN = "generic_investigation"
+
+    def _detect_scenario(self, request: InvestigationRequest) -> str:
+        """Detect the most appropriate investigation scenario from the question text."""
+        if request.scenario_hint == "churn_spike":
+            return self.SCENARIO_CHURN_SPIKE
+        if _matches_churn_spike(request.question):
+            return self.SCENARIO_CHURN_SPIKE
+        return self.SCENARIO_UNKNOWN
+
+    def plan(self, request: InvestigationRequest) -> InvestigationPlan:
+        """Generate a deterministic investigation plan for the given request.
+
+        The same question always produces the same plan structure.
+        """
+        scenario = self._detect_scenario(request)
+
+        if scenario == self.SCENARIO_CHURN_SPIKE:
+            steps = _build_churn_spike_plan(request.investigation_id, request.question)
+        else:
+            # Generic fallback: single document listing step for unknown scenarios
+            steps = [
+                InvestigationStep(
+                    step_id="STEP-01",
+                    objective="List available knowledge base documents",
+                    rationale="No specific scenario matched; starting with available documentation.",
+                    tool_name="document_retrieval",
+                    tool_input={"action": "list"},
+                    expected_evidence_type="document_listing",
+                    depends_on=[],
+                )
+            ]
+
+        # Respect max_steps cap
+        steps = steps[: request.max_steps]
+
+        return InvestigationPlan(
+            plan_id=f"PLAN-{uuid.uuid4().hex[:8].upper()}",
+            investigation_id=request.investigation_id,
+            question=request.question,
+            scenario=scenario,
+            steps=steps,
+            total_steps=len(steps),
+        )

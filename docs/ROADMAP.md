@@ -53,12 +53,15 @@ Foundations Enterprise  Controlled   Investigation Evidence &
 
 ---
 
-### Phase 3 — Investigation Planner
-- [ ] Design the investigation state machine and session model (`InvestigationContext`, `InvestigationStep`).
-- [ ] Implement hypothesis generation and step-by-step query planning.
-- [ ] Implement the execution loop (Step -> Tool Selection -> Observation -> Next Step / Termination).
-- [ ] Add guardrails: step count limits, timeout handling, and cyclic execution detection.
-- [ ] Write unit tests for planner flow with deterministic mock tool outputs.
+### Phase 3 — Investigation Planning & Orchestration
+- [x] Design typed Pydantic models: `InvestigationRequest`, `InvestigationPlan`, `InvestigationStep`, `InvestigationStepResult`, `InvestigationRunResult`, `StepStatus`, `InvestigationStatus`.
+- [x] Implement deterministic `InvestigationPlanner` with keyword-based scenario detection and canonical step sequences (no LLM).
+- [x] Implement `InvestigationOrchestrator` executing plans via `ToolRegistry` with dependency tracking.
+- [x] Dependency-aware execution: blocked steps receive explicit `BLOCKED` status when dependencies fail.
+- [x] Graceful error isolation: a failed step does not abort the full investigation.
+- [x] Comprehensive unit tests for planner determinism, keyword matching, dependency validation, and `max_steps` capping.
+- [x] Integration tests for orchestrator: structured results, ordering, row counts, dependency blocking, unregistered tool rejection.
+- [x] End-to-end evaluation scenario: verifies all 9 churn investigation steps complete and produce anomalous evidence signals.
 
 ---
 

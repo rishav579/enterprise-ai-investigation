@@ -91,10 +91,25 @@ Unlike conversational chatbots that generate unverified narrative text, this sys
 - Breaks the inquiry into distinct hypotheses and sub-goals.
 - Evaluates intermediate evidence after each tool step to determine whether to terminate or investigate further (bounded by max steps to prevent infinite loops).
 
-### 3.3. Controlled Tool-Calling Architecture
-- **Strict Registration:** Tools are explicitly declared classes with Pydantic parameter schemas and return types.
-- **Zero Dynamic Code Execution:** The LLM cannot emit arbitrary code (Python, Bash, or shell commands).
-- **Execution Isolation:** Tools operate independently and catch errors gracefully, returning structured error objects back to the orchestrator.
+### 3.3. Investigation Planning & Orchestration Layer (Phase 3 — Implemented)
+
+The Phase 3 layer provides deterministic investigation planning and orchestration **without requiring a live LLM**:
+
+**`InvestigationPlanner`**
+- Detects the investigation scenario from the business question using keyword matching.
+- Selects a pre-authored canonical step sequence (e.g., `churn_spike_investigation`).
+- Produces the same plan for the same question every time (deterministic, offline-capable).
+- Respects `max_steps` caps and `scenario_hint` overrides.
+
+**`InvestigationOrchestrator`**
+- Accepts an `InvestigationRequest`, requests a plan from the planner, then executes each step in order.
+- All tool invocations go exclusively through the `ToolRegistry` — no direct tool instantiation.
+- Tracks step completion state to enforce declared `depends_on` relationships.
+- A step with an unmet or failed dependency receives `BLOCKED` status and is not executed.
+- A failed step does not abort the investigation; subsequent independent steps continue.
+- Returns a fully typed `InvestigationRunResult` containing per-step results, row counts, evidence summaries, and overall counts.
+
+**Current Limitation:** The planner is rule-based. LLM-driven dynamic planning is scheduled for Phase 5.
 
 ### 3.4. Data Layer & Repository Pattern
 - Decouples business logic from persistence technologies.

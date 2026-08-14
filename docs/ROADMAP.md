@@ -38,16 +38,18 @@ Foundations Enterprise  Controlled   Investigation Evidence &
 ---
 
 ### Phase 2 — Controlled Investigation Tools
-- [ ] Build the core `ToolRegistry` and abstract base `BaseTool` class.
-- [ ] Implement `ReadOnlySQLTool`:
-  - SQL AST parser for statement validation (`SELECT` only).
-  - Schema introspection and query result truncation (max rows).
-  - Read-only transaction enforcement and query execution safety.
-- [ ] Implement `DocumentRetrievalTool`:
-  - Local document indexing and semantic/keyword search.
-  - Chunking, metadata tagging, and source path extraction.
-- [ ] Implement mock domain API tool (e.g., `ServiceHealthCheckTool`).
-- [ ] Write unit tests verifying tool parameter validation and error handling.
+- [x] Build the core `ToolRegistry` and abstract base `BaseTool` class.
+- [x] Implement `SQLInvestigationTool`:
+  - Token-level statement validation (`SELECT` and `WITH` only).
+  - Multi-statement detection and mutation keyword blocklist.
+  - Parameterized bindings and row limit capping (`truncated` flag).
+  - Clean structured output schemas (`SQLQueryResult`).
+- [x] Implement `DocumentRetrievalTool`:
+  - Safe local document repository listing, identifier retrieval, and keyword search.
+  - Path traversal and absolute file system path rejection.
+  - Excerpt extraction with line numbers and context.
+- [x] Implement comprehensive security guardrail tests (SQL injection, mutations, path traversals).
+- [x] Implement deterministic multi-step investigation scenario evaluation test suite.
 
 ---
 

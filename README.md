@@ -26,7 +26,7 @@ The system currently models a realistic SaaS operational scenario:
 4. **Support Queue Overload:** An influx of billing-related support tickets caused average resolution times to surge from ~4.5 hours to >45 hours.
 5. **Customer Churn Spike:** Subscriptions for affected pro/enterprise customers suffered an acute spike in cancellations citing payment and lockout issues.
 
-Solving this investigation requires correlating data across all 6 relational tables rather than relying on a single isolated column.
+Solving this investigation requires correlating data across all 6 relational tables and internal postmortem documents.
 
 ---
 
@@ -45,22 +45,47 @@ The database is built on SQLite (with PostgreSQL-ready SQLAlchemy abstractions) 
 
 ---
 
+## 🔧 Controlled Investigation Tools (Phase 2)
+
+The system exposes a secure, deterministic tool layer under `src/tools/` governed by a centralized `ToolRegistry`. Tools communicate exclusively via strictly typed Pydantic input and output schemas:
+
+### 1. `sql_investigation`
+- **Purpose:** Executes read-only analytical SQL queries against the enterprise relational database.
+- **Safety Boundaries:**
+  - Enforces `SELECT` or `WITH` (CTE) statements only.
+  - Multi-statement execution (semicolons separating queries) is strictly prohibited.
+  - Discrete token check disallows mutation keywords: `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `CREATE`, `ATTACH`, `PRAGMA`, `EXEC`, `VACUUM`, etc.
+  - Parameterized query values (`:param`) are strictly isolated from SQL text.
+  - Configurable row limits (`max_rows`) with explicit `truncated: bool` flag.
+  - Max query length (5,000 chars) and max parameter count (50 params) limits.
+
+### 2. `document_retrieval`
+- **Purpose:** Discovers and retrieves internal postmortems, policy memos, and runbooks from configured document directories.
+- **Actions Supported:**
+  - `list`: Lists available documents with metadata (title, byte size, path).
+  - `get`: Reads full document text by identifier (`document_id`).
+  - `search`: Deterministic keyword/phrase search across documents with line numbers and context snippets.
+- **Safety Boundaries:**
+  - Absolute paths (`/etc/`, `C:\`) and directory traversal sequences (`../`, `..\`) are strictly rejected.
+  - File access is locked exclusively to the configured knowledge base directory.
+
+---
+
 ## 🔄 Investigation Flow (Target Architecture)
 
 ```
 Business Question / Incident Alert
                │
                ▼
-   [ Investigation Planner ]
+   [ Investigation Planner ]  (Upcoming Phase 3)
                │
                ▼
-   [ Controlled Tool Registry ]
-       ├── Read-Only SQL Investigation Tool
-       ├── Document & Policy Retrieval Tool
-       └── Domain-Specific API Tools (Mocked)
+   [ Controlled Tool Registry ]  (Implemented in Phase 2)
+       ├── Read-Only SQL Investigation Tool (`sql_investigation`)
+       └── Document & Policy Retrieval Tool (`document_retrieval`)
                │
                ▼
-     [ Evidence Collector ]
+     [ Evidence Collector ]   (Upcoming Phase 4)
   (Raw queries, records, citations)
                │
                ▼
@@ -75,42 +100,28 @@ Business Question / Incident Alert
 
 ---
 
-## 🛡️ Core Architectural Principles
-
-- **Controlled Tools Only:** No arbitrary shell or dynamic code execution. Every tool has a strictly typed input/output schema.
-- **Read-Only SQL Access:** All SQL queries are parsed via Abstract Syntax Tree (AST) validation and executed against read-only database connections.
-- **Evidence-First Responses:** Every claim in a final recommendation must cite specific records, metrics, or document excerpts captured in the evidence collector.
-- **Auditable Tool Execution:** Complete immutable audit logs capturing prompts, tool invocations, parameters, raw tool outputs, and timestamps.
-- **Data & Repository Isolation:** Clear separation between domain logic, data access repositories, and AI orchestration.
-- **Provider-Agnostic LLM Layer:** Abstracted model interface allowing seamless switching between OpenAI, Anthropic, or local offline models (e.g., via Ollama).
-- **Deterministic Evaluation:** System performance is evaluated against reproducible, offline test scenarios with verified ground truth—avoiding subjective or fabricated benchmark numbers.
-
----
-
 ## 🚀 Getting Started
 
 ### 1. Environment Setup
-Clone the repository and install dependencies:
 ```bash
 pip install -e .
-# Or install optional dev dependencies:
+# Or install dev dependencies:
 pip install -e ".[dev]"
 ```
 
 ### 2. Seed the Deterministic Database
-Populate the SQLite database with the synthetic enterprise dataset:
+Populate the SQLite database with synthetic enterprise records:
 ```bash
 python -m src.data.seed_database
 ```
 
 ### 3. Run the Test & Evaluation Suite
-Run all unit tests, integration tests, and scenario evaluation checks:
+Run all unit tests, security guardrail tests, integration tests, and scenario evaluations:
 ```bash
 python -m pytest
 ```
 
 ### 4. Start the API Server
-Start the local FastAPI development server:
 ```bash
 uvicorn src.api.main:app --reload --port 8000
 ```
@@ -124,11 +135,12 @@ curl http://localhost:8000/health
 
 ## ⚠️ Current Phase & Limitations
 
-- **Current Status:** `Phase 1 — Enterprise Data Foundation` (Completed)
-- **Next Up:** `Phase 2 — Controlled Investigation Tools`
+- **Current Status:** `Phase 2 — Controlled Investigation Tools` (Completed)
+- **Next Up:** `Phase 3 — Investigation Planner`
 - **Current Limitations:**
-  - LLM orchestration and agent planning are not yet active (scheduled for Phases 2–5).
-  - The API currently exposes only `/health`; investigation endpoints will be added once tool and planning engines are integrated.
+  - **No LLM or Autonomous Agent:** The tools and tests currently run in deterministic, offline-capable Python without live AI models (scheduled for Phase 5).
+  - **No Vector Search:** Document retrieval uses deterministic keyword/phrase indexing without embedding models.
+  - **No Web Investigation API:** The FastAPI app currently exposes `/health`; full investigation execution endpoints will be added in subsequent phases.
 
 ---
 

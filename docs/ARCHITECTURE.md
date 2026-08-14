@@ -126,10 +126,34 @@ The Phase 3 layer provides deterministic investigation planning and orchestratio
 - Employs hybrid retrieval (Vector semantic similarity + Full-Text Search / FTS) to locate relevant passages.
 - Returns explicit text chunks with document titles, section headers, and file paths for verifiable citations.
 
-### 3.7. Evidence Collection Engine
-- Stores every fact discovered during tool execution as an **Evidence Item**.
-- Each item contains: `evidence_id`, `source_tool`, `raw_payload`, `timestamp`, `step_index`, and `citation_tag`.
-- The final synthesis layer is strictly constrained to reference only registered Evidence Items.
+### 3.7. Evidence Collection Engine (Phase 4 — Implemented)
+
+**Evidence collection is deterministic and does NOT use an LLM.**
+
+**`EvidenceItem`** — the core unit (immutable, `frozen=True`):
+- `evidence_id`: stable ID in `EVID-NNN` format (assigned in collection order within a run).
+- `investigation_run_id`, `step_id`, `tool_name`: full provenance chain.
+- `evidence_type`: controlled vocabulary (`SQL_RESULT`, `DOCUMENT_TEXT`, `DOCUMENT_MATCH`, `DOCUMENT_SEARCH_SUMMARY`, `DOCUMENT_LISTING`, `METRIC`).
+- `source_reference`: human-readable reference to the evidence source (e.g. `sql_investigation:STEP-03`).
+- `content`: typed, structured content (schema-validated via `SQLEvidenceContent`, `DocumentTextContent`, etc.).
+- `content_hash`: deterministic SHA-256 hex digest of the canonicalized content — mutation-detectable.
+
+**`EvidenceStore`** — append-only, per-run collection:
+- Items are indexed by `evidence_id` for O(1) lookup.
+- Attempting to overwrite an existing ID raises `ValueError`.
+- Exposes `for_step(step_id)` and `ids_for_step(step_id)` for step-level queries.
+
+**`EvidenceCollector`** — faithful tool output transcriber:
+- SQL results → `SQL_RESULT` (preserves query, columns, rows, row_count, truncated flag).
+- Document `get` → `DOCUMENT_TEXT` (preserves document_id, full text, char_count).
+- Document `search` → `DOCUMENT_SEARCH_SUMMARY` (always) + `DOCUMENT_MATCH` per match.
+- Document `list` → `DOCUMENT_LISTING`.
+- FAILED and BLOCKED steps produce **zero evidence** (no fabrication).
+
+**Evidence IDs** are attached to `InvestigationStepResult.evidence_ids` creating the chain:
+```
+investigation step → evidence IDs → typed evidence content
+```
 
 ### 3.8. Decision & Recommendation Layer
 - Synthesizes findings into a structured decision payload:
@@ -144,14 +168,15 @@ The Phase 3 layer provides deterministic investigation planning and orchestratio
 - **Prompt Injection Defense:** Inputs and tool responses are demarcated with strict boundary markers; tool outputs are treated as untrusted data.
 - **Sanitized SQL Error Handling:** Database engine errors are captured and sanitized before reflection to prevent leaking underlying infrastructure topology.
 
-### 3.10. Audit Trail & Reproducibility
-- An append-only audit log records the complete lifecycle of every investigation.
-- Stores:
-  1. Initial prompt and user context.
-  2. Investigation plan steps.
-  3. Raw tool inputs and raw tool outputs.
-  4. Model reasoning steps.
-  5. Human approval decisions, reviewer identity, and timestamps.
+### 3.10. Audit Trail & Reproducibility (Phase 4 — Implemented)
+
+**`AuditTrail`** — append-only lifecycle log (per investigation run):
+- Records `AuditEvent` instances with deterministic sequence numbers (`AUDIT-NNN`).
+- Events are **immutable** (`frozen=True`): once recorded they cannot be mutated.
+- Event types: `INVESTIGATION_STARTED`, `PLAN_CREATED`, `STEP_STARTED`, `STEP_COMPLETED`, `STEP_FAILED`, `STEP_BLOCKED`, `EVIDENCE_COLLECTED`, `INVESTIGATION_COMPLETED`, `INVESTIGATION_PARTIAL`, `INVESTIGATION_FAILED`.
+- Each event carries: `step_id`, `tool_name`, `evidence_ids` (when applicable), and structured `metadata`.
+- `all()` returns a defensive copy; internal state cannot be corrupted by external mutation.
+- Sequence numbers are deterministic integers — suitable for reproducible testing without wall-clock dependency.
 
 ### 3.11. Evaluation Strategy
 - Evaluated deterministically against an offline **Golden Evaluation Dataset** containing synthetic scenarios with known root causes.

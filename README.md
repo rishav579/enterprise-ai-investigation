@@ -1,7 +1,7 @@
 # Enterprise AI Investigation & Decision System
 
 > **Portfolio & Educational Disclaimer:**
-> This repository is an educational portfolio project simulating an enterprise-grade AI investigation and decision-support system. It demonstrates production-grade AI system architecture, safety guardrails, controlled tool execution, deterministic planning, and evidence-first investigation. It does **not** claim real company usage, real customer data, or fabricated performance metrics.
+> This repository is an educational portfolio project simulating an enterprise-grade AI investigation and decision-support system. It demonstrates production-grade AI system architecture, safety guardrails, controlled tool execution, deterministic planning, evidence collection with integrity hashing, and a complete investigation audit trail. It does **not** claim real company usage, real customer data, or fabricated performance metrics.
 
 ---
 
@@ -43,9 +43,7 @@ Solving this investigation requires correlating all 6 relational tables plus int
 
 ---
 
-## 🧠 Investigation Orchestration (Phase 3)
-
-The investigation flow is now functional end-to-end — without any LLM:
+## 🧠 Investigation Architecture (Phases 1–4)
 
 ```
 Business Question
@@ -65,14 +63,48 @@ Business Question
   respects step order
   dependency-aware (BLOCKED on unmet deps)
   graceful per-step error isolation
+  records AuditEvents for every lifecycle transition
+      │
+      ├──→ [ EvidenceCollector ]  — deterministic, no LLM
+      │       SQL results → SQL_RESULT evidence
+      │       Doc get     → DOCUMENT_TEXT evidence
+      │       Doc search  → DOCUMENT_SEARCH_SUMMARY + DOCUMENT_MATCH
+      │       Doc list    → DOCUMENT_LISTING evidence
+      │       Failed/blocked steps → ZERO evidence (no fabrication)
+      │       Every EvidenceItem carries a SHA-256 content hash
+      │
+      ├──→ [ AuditTrail ]         — append-only, immutable events
+      │       INVESTIGATION_STARTED → PLAN_CREATED
+      │       STEP_STARTED → STEP_COMPLETED | STEP_FAILED | STEP_BLOCKED
+      │       EVIDENCE_COLLECTED → INVESTIGATION_COMPLETED
       │
       ▼
-[ InvestigationRunResult ]        — structured for future evidence collection
-  per-step results, row counts, evidence summaries
+[ InvestigationRunResult ]        — fully typed, Phase 4 extended
+  per-step results with evidence_ids
+  total_evidence_items, audit_event_count
   overall status (COMPLETED / PARTIAL / FAILED)
 ```
 
 > **Note:** No LLM reasoning or autonomous agent is active yet. The planner uses explicit, deterministic scenario definitions. LLM integration is planned for Phase 5.
+
+---
+
+## 🔒 Evidence Model
+
+Each `EvidenceItem` answers:
+
+| Field | Question Answered |
+| :--- | :--- |
+| `evidence_id` | What is this item's unique identifier? (`EVID-001` etc.) |
+| `investigation_run_id` | Which investigation run produced this? |
+| `step_id` | Which investigation step produced this? |
+| `tool_name` | Which tool produced this? |
+| `evidence_type` | What kind of evidence is this? (SQL result, document text, etc.) |
+| `source_reference` | What exact source/query/document? |
+| `content` | What is the raw structured data? (typed schema) |
+| `content_hash` | SHA-256 fingerprint — detects any content mutation |
+
+**Evidence collection is deterministic and does NOT use an LLM.**
 
 ---
 
@@ -99,7 +131,7 @@ pip install -e ".[dev]"
 python -m src.data.seed_database
 ```
 
-### 3. Run all tests (95 tests)
+### 3. Run all tests (167 tests)
 ```bash
 python -m pytest
 ```
@@ -114,13 +146,14 @@ curl http://localhost:8000/health   # {"status": "ok"}
 
 ## ⚠️ Current Status & Limitations
 
-- **Current Phase:** `Phase 3 — Investigation Planning & Orchestration` (Completed)
-- **Next Phase:** `Phase 4 — Evidence & Decision Engine`
+- **Current Phase:** `Phase 4 — Evidence Collection & Auditability` (Completed)
+- **Next Phase:** `Phase 5 — AI Integration (LLM Client Abstraction)`
 - **Limitations:**
-  - No LLM reasoning yet — the planner is deterministic and rule-based.
-  - No evidence tagging or citation IDs yet (Phase 4).
-  - No human approval workflow yet (Phase 4).
+  - No LLM reasoning yet — planner is deterministic and rule-based.
+  - No recommendation synthesis yet (Phase 5+).
+  - No human approval workflow yet (Phase 5+).
   - FastAPI exposes only `/health`; investigation endpoints come in a later phase.
+  - Evidence stores are in-memory per run; persistence comes in a later phase.
 
 ---
 

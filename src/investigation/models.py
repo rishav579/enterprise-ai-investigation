@@ -99,6 +99,10 @@ class InvestigationStepResult(BaseModel):
         None,
         description="Human-readable summary of key evidence found in this step",
     )
+    evidence_ids: List[str] = Field(
+        default_factory=list,
+        description="IDs of EvidenceItems collected from this step (e.g. ['EVID-001', 'EVID-002'])",
+    )
 
 
 class InvestigationRunResult(BaseModel):
@@ -119,4 +123,13 @@ class InvestigationRunResult(BaseModel):
     error_message: Optional[str] = Field(
         None,
         description="Top-level error message if the investigation itself could not proceed",
+    )
+    # Phase 4: evidence and audit
+    total_evidence_items: int = Field(
+        0,
+        description="Total number of evidence items collected across all steps",
+    )
+    audit_event_count: int = Field(
+        0,
+        description="Total number of audit events recorded during this run",
     )

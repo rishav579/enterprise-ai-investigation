@@ -65,17 +65,20 @@ Foundations Enterprise  Controlled   Investigation Evidence &
 
 ---
 
-### Phase 4 — Evidence & Decision Engine
-- [ ] Build the `EvidenceCollector` module:
-  - Artifact storage for query outputs, document chunks, and metric calculations.
-  - Unique evidence identification (`EVID-001`, `EVID-002`) and citation linking.
-- [ ] Implement structured recommendation synthesis:
-  - Root-cause classification.
-  - Supporting vs. refuting evidence matrix.
-  - Remediation action proposal.
-- [ ] Implement the Human-in-the-Loop approval gate:
-  - Approval state transitions (`PENDING_REVIEW`, `APPROVED`, `REJECTED`, `AMENDED`).
-  - Signature and audit metadata logging.
+### Phase 4 — Evidence Collection & Auditability
+- [x] Typed evidence domain model (`EvidenceItem`, `EvidenceStore`, `EvidenceType`, typed content schemas).
+- [x] Deterministic content hash (`SHA-256` via stdlib `hashlib`) for every evidence item.
+- [x] `EvidenceCollector`: faithful, non-LLM conversion of tool outputs to typed evidence.
+- [x] `DOCUMENT_SEARCH_SUMMARY` evidence type ensures every search step is auditable even with 0 matches.
+- [x] `evidence_ids` attached to each `InvestigationStepResult`.
+- [x] `total_evidence_items` and `audit_event_count` added to `InvestigationRunResult`.
+- [x] `AuditTrail`: append-only, immutable `AuditEvent` records with deterministic sequence numbers.
+- [x] Audit events for: investigation start/end, plan creation, step start/complete/fail/block, evidence collection.
+- [x] Orchestrator extended with evidence collection and audit trail (all Phase 3 contracts preserved).
+- [x] No evidence fabricated for FAILED or BLOCKED steps.
+- [x] Comprehensive unit tests: hash stability, mutation detection, EvidenceStore append-only semantics, audit immutability.
+- [x] Integration tests: evidence IDs in step results, provenance, no-fabrication on failures.
+- [x] End-to-end evaluation: hash stability across runs, provenance checks on SQL and document evidence.
 
 ---
 

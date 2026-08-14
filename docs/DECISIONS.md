@@ -88,3 +88,16 @@ This document records the foundational architectural decisions made for the **En
 - **Consequences:**
   - *Positive:* High credibility, authentic engineering rigor, transparent and reproducible test results.
   - *Trade-off:* Requires upfront investment in crafting realistic synthetic evaluation test cases.
+
+---
+
+## ADR 008: Deterministic Evidence Integrity via SHA-256 Content Hashing
+
+- **Status:** Accepted
+- **Date:** Phase 4 (Evidence Collection & Auditability)
+- **Context:** Evidence items collected during an investigation are the factual basis for any recommendation. If evidence content were silently mutated (e.g. by a bug, memory corruption, or a malicious intermediate process), the resulting recommendation would be based on fabricated data. Enterprise systems require tamper-detectable evidence.
+- **Decision:** Every `EvidenceItem` carries a `content_hash` — the SHA-256 hex digest of the canonical JSON serialization of its `content` dict (sorted keys, no extra whitespace, UTF-8 encoding). The hash is computed at the moment of item creation and stored immutably on the frozen Pydantic model. Tests verify that (1) identical content always produces the same hash, and (2) any mutation to the content produces a different hash.
+- **Rationale for stdlib SHA-256 (not external library):** SHA-256 is available in Python's standard `hashlib` module — no additional dependency is introduced. For a portfolio project, this provides sufficient integrity detection without cryptographic signing overhead.
+- **Consequences:**
+  - *Positive:* Any change to evidence content — whether accidental or malicious — is detectable by recomputing the hash. Hash stability tests run deterministically in CI.
+  - *Trade-off:* The hash alone does not prevent tampering (for that, a HMAC or digital signature scheme would be needed). It provides tamper *detection*, not tamper *prevention* — appropriate for this project stage.

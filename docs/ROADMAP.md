@@ -1,0 +1,116 @@
+# Project Implementation Roadmap
+
+This roadmap defines the step-by-step, incremental development lifecycle for the **Enterprise AI Investigation & Decision System**. Each phase builds upon the verified foundation of preceding phases.
+
+---
+
+## 🗺️ Phases Overview
+
+```
+Phase 0 ──► Phase 1 ──► Phase 2 ──► Phase 3 ──► Phase 4
+Foundations Enterprise  Controlled   Investigation Evidence &
+            Data Setup  Tools Engine  Planner       Decision
+
+   ──► Phase 5 ──► Phase 6 ──► Phase 7 ──► Phase 8 ──► Phase 9
+       AI Model    Eval &      Frontend    Deployment  Portfolio
+       Integration Hardening   Dashboard   Packaging   Finalization
+```
+
+---
+
+### Phase 0 — Foundation
+- [x] Initialize Git repository with `main` branch and remote origin.
+- [x] Establish architecture documentation (`README.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `DECISIONS.md`).
+- [ ] Define standard project folder layout (`src/`, `tests/`, `data/`, `docs/`).
+- [ ] Configure Python environment, packaging files (`pyproject.toml` or `requirements.txt`), and `.gitignore`.
+- [ ] Setup code formatting and linting standards (e.g., `ruff`, `mypy`).
+
+---
+
+### Phase 1 — Enterprise Data Foundation
+- [ ] Design synthetic enterprise domain schema (e.g., SaaS operational data: customers, subscription events, support tickets, billing transactions, service health logs).
+- [ ] Implement database migration and table definition scripts using SQLAlchemy.
+- [ ] Build deterministic data seed scripts generating realistic operational anomalies (e.g., churn spikes, billing glitches).
+- [ ] Create synthetic internal knowledge base documents (postmortems, SLA policies, product update announcements, runbooks).
+- [ ] Verify data integrity and query performance using standalone unit tests.
+
+---
+
+### Phase 2 — Controlled Investigation Tools
+- [ ] Build the core `ToolRegistry` and abstract base `BaseTool` class.
+- [ ] Implement `ReadOnlySQLTool`:
+  - SQL AST parser for statement validation (`SELECT` only).
+  - Schema introspection and query result truncation (max rows).
+  - Read-only transaction enforcement and query execution safety.
+- [ ] Implement `DocumentRetrievalTool`:
+  - Local document indexing and semantic/keyword search.
+  - Chunking, metadata tagging, and source path extraction.
+- [ ] Implement mock domain API tool (e.g., `ServiceHealthCheckTool`).
+- [ ] Write unit tests verifying tool parameter validation and error handling.
+
+---
+
+### Phase 3 — Investigation Planner
+- [ ] Design the investigation state machine and session model (`InvestigationContext`, `InvestigationStep`).
+- [ ] Implement hypothesis generation and step-by-step query planning.
+- [ ] Implement the execution loop (Step -> Tool Selection -> Observation -> Next Step / Termination).
+- [ ] Add guardrails: step count limits, timeout handling, and cyclic execution detection.
+- [ ] Write unit tests for planner flow with deterministic mock tool outputs.
+
+---
+
+### Phase 4 — Evidence & Decision Engine
+- [ ] Build the `EvidenceCollector` module:
+  - Artifact storage for query outputs, document chunks, and metric calculations.
+  - Unique evidence identification (`EVID-001`, `EVID-002`) and citation linking.
+- [ ] Implement structured recommendation synthesis:
+  - Root-cause classification.
+  - Supporting vs. refuting evidence matrix.
+  - Remediation action proposal.
+- [ ] Implement the Human-in-the-Loop approval gate:
+  - Approval state transitions (`PENDING_REVIEW`, `APPROVED`, `REJECTED`, `AMENDED`).
+  - Signature and audit metadata logging.
+
+---
+
+### Phase 5 — AI Integration
+- [ ] Build the provider-agnostic LLM interface (`LLMClient` abstraction).
+- [ ] Implement concrete adapters (OpenAI, Anthropic, Ollama / Local Models).
+- [ ] Design structured prompt templates with strict schema enforcement (JSON output parsing via Pydantic).
+- [ ] Implement fallback and retry logic for structured parsing failures.
+- [ ] Verify end-to-end investigation runs with real/mocked model responses.
+
+---
+
+### Phase 6 — Evaluation & Hardening
+- [ ] Develop an offline **Golden Evaluation Dataset** containing multi-domain investigation scenarios with ground truth.
+- [ ] Build automated evaluation harnesses:
+  - SQL correctness evaluation against ground-truth queries.
+  - Evidence retrieval recall and precision.
+  - Guardrail testing (injection attacks, attempts to run mutating SQL).
+- [ ] Implement audit trail export and verification tools.
+- [ ] Document deterministic benchmark results.
+
+---
+
+### Phase 7 — Frontend
+- [ ] Build a clean, responsive web interface for interacting with investigations.
+- [ ] Interactive timeline showing investigation steps, tool executions, and raw evidence.
+- [ ] Evidence inspector with SQL query view and document viewer.
+- [ ] Decision approval dashboard with explicit human sign-off actions.
+
+---
+
+### Phase 8 — Deployment
+- [ ] Create Dockerfile for containerized backend execution.
+- [ ] Create `docker-compose.yml` for unified local setup (API, Database, Frontend).
+- [ ] Implement health check endpoints (`/health`, `/ready`).
+- [ ] Add environment configuration templates (`.env.example`).
+
+---
+
+### Phase 9 — Portfolio Finalization
+- [ ] Write comprehensive documentation, quickstart guide, and API documentation.
+- [ ] Record demonstration walkthroughs and scenario case studies.
+- [ ] Review all codebase files for clean architecture, type annotations, and documentation comments.
+- [ ] Final repository polish.

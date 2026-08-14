@@ -7,26 +7,45 @@
 
 ## 📌 Problem Statement
 
-In enterprise environments, operational anomalies (such as sudden customer churn spikes, billing discrepancies, or supply chain bottlenecks) require cross-functional investigation across structured relational databases and unstructured internal documents. 
+In enterprise environments, operational anomalies (such as sudden customer churn spikes, billing discrepancies, or support escalations) require cross-functional investigation across structured relational databases and unstructured internal documents. 
 
 Standard LLM chat interfaces often hallucinate answers, lack access to live data, or pose severe security risks if granted unconstrained database or shell access. Enterprises need an **auditable, deterministic, and evidence-grounded AI investigation system** where every conclusion is traceable back to verified raw evidence, tools operate within strict sandboxes, and actions require human authorization.
 
 ---
 
-## 🎯 Purpose & Goals
+## 🏢 Synthetic Business Investigation Scenario
 
-The **Enterprise AI Investigation & Decision System** simulates an internal AI analyst that:
-1. Translates high-level business questions into structured investigation plans.
-2. Selects and executes specific, sandboxed, read-only tools to gather facts.
-3. Queries structured SQL databases safely (read-only AST-validated queries).
-4. Retrieves relevant internal documentation and policy guidelines.
-5. Assembles a structured, immutable evidence chain with citations.
-6. Synthesizes an evidence-backed root-cause analysis and actionable recommendations.
-7. Enforces a human-in-the-loop approval workflow prior to decision execution.
+The system currently models a realistic SaaS operational scenario:
+
+> *"Customer cancellations increased significantly during Q3 2025. An internal analyst needs to investigate whether the increase is related to billing issues, support performance, product incidents, customer segments, or other operational factors."*
+
+### Planted Multi-Table Business Signals:
+1. **Software Release:** Deployment of `billing-gateway` version `v2.4.0` on 2025-09-02 introduced a webhook confirmation bug.
+2. **Product Incident:** A P1 incident (`INC-2025-002`) on 2025-09-05 where valid enterprise/pro customer payments were erroneously flagged as failed.
+3. **Billing Failures:** Failed subscription payment events surged from <3% to >30% in September for affected cohorts.
+4. **Support Queue Overload:** An influx of billing-related support tickets caused average resolution times to surge from ~4.5 hours to >45 hours.
+5. **Customer Churn Spike:** Subscriptions for affected pro/enterprise customers suffered an acute spike in cancellations citing payment and lockout issues.
+
+Solving this investigation requires correlating data across all 6 relational tables rather than relying on a single isolated column.
 
 ---
 
-## 🔄 Investigation Flow
+## 🗄️ Relational Database Schema
+
+The database is built on SQLite (with PostgreSQL-ready SQLAlchemy abstractions) and comprises 6 normalized entities:
+
+| Table | Description | Key Fields |
+| :--- | :--- | :--- |
+| `customers` | Core customer registry | `customer_id`, `segment`, `region`, `signup_date`, `plan` |
+| `subscriptions` | Customer subscription states | `subscription_id`, `customer_id`, `status`, `cancellation_date`, `cancellation_reason` |
+| `billing_events` | Charge and payment lifecycle | `billing_event_id`, `customer_id`, `event_date`, `event_type`, `amount`, `status` |
+| `support_tickets` | Support ticket queue & SLAs | `ticket_id`, `customer_id`, `created_at`, `resolved_at`, `priority`, `category`, `status` |
+| `product_incidents` | Major platform incident records | `incident_id`, `incident_date`, `severity`, `service`, `description` |
+| `release_events` | Software deployment history | `release_id`, `release_date`, `service`, `version`, `change_type` |
+
+---
+
+## 🔄 Investigation Flow (Target Architecture)
 
 ```
 Business Question / Incident Alert
@@ -51,7 +70,7 @@ Business Question / Incident Alert
   [ Evidence-Backed Recommendation ]
                │
                ▼
-   [ Human Approval / Sign-Off ]
+    [ Human Approval / Sign-Off ]
 ```
 
 ---
@@ -68,27 +87,52 @@ Business Question / Incident Alert
 
 ---
 
-## 🛠️ Planned Tech Stack
+## 🚀 Getting Started
 
-| Layer | Planned Technology |
-| :--- | :--- |
-| **Language & Runtime** | Python 3.11+ |
-| **API Framework** | FastAPI (ASGI) |
-| **Data Validation & Schemas** | Pydantic v2 |
-| **Data Layer & ORM** | SQLAlchemy 2.0 (Repository Pattern) |
-| **Databases** | SQLite (development/local) → PostgreSQL (production abstraction) |
-| **SQL Safety** | SQLGlot / AST analysis for read-only query verification |
-| **Document Retrieval** | Local embeddings + Vector/FTS search abstraction |
-| **Testing & Evaluation** | Pytest, JSON Schema validation, deterministic test suites |
-| **Frontend (Future)** | Modern lightweight web interface |
+### 1. Environment Setup
+Clone the repository and install dependencies:
+```bash
+pip install -e .
+# Or install optional dev dependencies:
+pip install -e ".[dev]"
+```
+
+### 2. Seed the Deterministic Database
+Populate the SQLite database with the synthetic enterprise dataset:
+```bash
+python -m src.data.seed_database
+```
+
+### 3. Run the Test & Evaluation Suite
+Run all unit tests, integration tests, and scenario evaluation checks:
+```bash
+python -m pytest
+```
+
+### 4. Start the API Server
+Start the local FastAPI development server:
+```bash
+uvicorn src.api.main:app --reload --port 8000
+```
+Verify the health endpoint:
+```bash
+curl http://localhost:8000/health
+# Returns: {"status": "ok"}
+```
 
 ---
 
-## 🚦 Project Status
+## ⚠️ Current Phase & Limitations
 
-- **Current Phase:** `Phase 0 — Foundation`
-- **Next Phase:** `Phase 1 — Enterprise Data Foundation`
+- **Current Status:** `Phase 1 — Enterprise Data Foundation` (Completed)
+- **Next Up:** `Phase 2 — Controlled Investigation Tools`
+- **Current Limitations:**
+  - LLM orchestration and agent planning are not yet active (scheduled for Phases 2–5).
+  - The API currently exposes only `/health`; investigation endpoints will be added once tool and planning engines are integrated.
 
-See [ROADMAP.md](docs/ROADMAP.md) for full phase-by-phase execution plan.
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architectural specifications.
-See [DECISIONS.md](docs/DECISIONS.md) for Architecture Decision Records (ADRs).
+---
+
+## 📚 Documentation Links
+- [Architecture Details (ARCHITECTURE.md)](docs/ARCHITECTURE.md)
+- [Implementation Roadmap (ROADMAP.md)](docs/ROADMAP.md)
+- [Architecture Decision Records (DECISIONS.md)](docs/DECISIONS.md)

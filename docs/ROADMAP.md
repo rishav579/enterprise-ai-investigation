@@ -21,18 +21,19 @@ Foundations Enterprise  Controlled   Investigation Evidence &
 ### Phase 0 — Foundation
 - [x] Initialize Git repository with `main` branch and remote origin.
 - [x] Establish architecture documentation (`README.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `DECISIONS.md`).
-- [ ] Define standard project folder layout (`src/`, `tests/`, `data/`, `docs/`).
-- [ ] Configure Python environment, packaging files (`pyproject.toml` or `requirements.txt`), and `.gitignore`.
-- [ ] Setup code formatting and linting standards (e.g., `ruff`, `mypy`).
+- [x] Define standard project folder layout (`src/`, `tests/`, `data/`, `docs/`).
+- [x] Configure Python environment, packaging files (`pyproject.toml`), and `.gitignore`.
 
 ---
 
 ### Phase 1 — Enterprise Data Foundation
-- [ ] Design synthetic enterprise domain schema (e.g., SaaS operational data: customers, subscription events, support tickets, billing transactions, service health logs).
-- [ ] Implement database migration and table definition scripts using SQLAlchemy.
-- [ ] Build deterministic data seed scripts generating realistic operational anomalies (e.g., churn spikes, billing glitches).
-- [ ] Create synthetic internal knowledge base documents (postmortems, SLA policies, product update announcements, runbooks).
-- [ ] Verify data integrity and query performance using standalone unit tests.
+- [x] Design synthetic enterprise domain schema (SaaS operational data: customers, subscriptions, support tickets, billing events, product incidents, release events).
+- [x] Implement database schema and table definitions using SQLAlchemy 2.0.
+- [x] Build deterministic, idempotent data seed scripts generating multi-table planted business anomalies (cancellation spike, billing gateway regression, support SLA degradation).
+- [x] Create mock knowledge base postmortem document.
+- [x] Implement read-oriented safe query service and Pydantic validation models.
+- [x] Verify data integrity, query performance, and scenario signal presence using pytest test suite.
+- [x] Implement minimal FastAPI `/health` endpoint.
 
 ---
 

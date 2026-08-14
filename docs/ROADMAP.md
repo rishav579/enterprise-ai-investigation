@@ -98,13 +98,13 @@ Foundations Enterprise  Controlled   Investigation Evidence &
 ---
 
 ### Phase 6 — Evaluation & Hardening
-- [ ] Develop an offline **Golden Evaluation Dataset** containing multi-domain investigation scenarios with ground truth.
-- [ ] Build automated evaluation harnesses:
-  - SQL correctness evaluation against ground-truth queries.
-  - Evidence retrieval recall and precision.
-  - Guardrail testing (injection attacks, attempts to run mutating SQL).
-- [ ] Implement audit trail export and verification tools.
-- [ ] Document deterministic benchmark results.
+- [x] Develop an offline **Golden Evaluation Dataset** containing multi-domain investigation scenarios with ground truth.
+- [x] Build automated evaluation harnesses:
+  - [x] SQL correctness evaluation against ground-truth queries.
+  - [x] Evidence retrieval recall and precision.
+  - [x] Guardrail testing (injection attacks, attempts to run mutating SQL).
+- [x] Implement audit trail export and verification tools.
+- [x] Document deterministic benchmark results.
 
 ---
 

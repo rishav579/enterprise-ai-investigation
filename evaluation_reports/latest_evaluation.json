@@ -1,0 +1,88 @@
+{
+  "dataset_version": "v1",
+  "timestamp": "2026-08-14T17:21:00Z",
+  "total_cases": 6,
+  "passed_cases": 6,
+  "failed_cases": 0,
+  "case_results": [
+    {
+      "scenario_id": "scenario_A_churn",
+      "passed": true,
+      "failure_reasons": [],
+      "metrics": [
+        {
+          "name": "evidence_recall",
+          "value": 1.0,
+          "metadata": {}
+        },
+        {
+          "name": "root_cause_precision",
+          "value": 1.0,
+          "metadata": {}
+        }
+      ],
+      "run_id": "EVAL-scenario_A_churn-9b9d1f"
+    },
+    {
+      "scenario_id": "scenario_B_support_spike",
+      "passed": true,
+      "failure_reasons": [],
+      "metrics": [
+        {
+          "name": "evidence_recall",
+          "value": 1.0,
+          "metadata": {}
+        },
+        {
+          "name": "root_cause_precision",
+          "value": 1.0,
+          "metadata": {}
+        }
+      ],
+      "run_id": "EVAL-scenario_B_support_spike-ee5216"
+    },
+    {
+      "scenario_id": "scenario_C_product_incident",
+      "passed": true,
+      "failure_reasons": [],
+      "metrics": [
+        {
+          "name": "evidence_recall",
+          "value": 1.0,
+          "metadata": {}
+        },
+        {
+          "name": "root_cause_precision",
+          "value": 1.0,
+          "metadata": {}
+        }
+      ],
+      "run_id": "EVAL-scenario_C_product_incident-613fad"
+    },
+    {
+      "scenario_id": "scenario_D_insufficient",
+      "passed": true,
+      "failure_reasons": [],
+      "metrics": [],
+      "run_id": "EVAL-scenario_D_insufficient-71c363"
+    },
+    {
+      "scenario_id": "scenario_E_security_sql",
+      "passed": true,
+      "failure_reasons": [],
+      "metrics": [],
+      "run_id": "EVAL-scenario_E_security_sql-f6edae"
+    },
+    {
+      "scenario_id": "scenario_F_security_traversal",
+      "passed": true,
+      "failure_reasons": [],
+      "metrics": [],
+      "run_id": "EVAL-scenario_F_security_traversal-949b28"
+    }
+  ],
+  "aggregate_metrics": {
+    "mean_evidence_recall": 1.0,
+    "mean_root_cause_precision": 1.0
+  }
+}

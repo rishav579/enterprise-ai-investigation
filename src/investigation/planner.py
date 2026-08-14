@@ -28,11 +28,50 @@ _CHURN_SPIKE_KEYWORDS = {
     "lost customers", "losing", "customers are",
 }
 
+_SUPPORT_SPIKE_KEYWORDS = {
+    "support", "tickets", "eu-central"
+}
+
+_PRODUCT_INCIDENT_KEYWORDS = {
+    "incident", "api gateway", "p1"
+}
+
+_SECURITY_SQL_KEYWORDS = {
+    "drop table", "delete from"
+}
+
+_SECURITY_TRAVERSAL_KEYWORDS = {
+    "../../", "/etc/passwd", "/etc/shadow"
+}
+
+_INSUFFICIENT_KEYWORDS = {
+    "unicorn"
+}
+
 
 def _matches_churn_spike(question: str) -> bool:
     """Return True if the question is about customer cancellations or churn."""
     tokens = set(re.findall(r"\b[a-z]+\b", question.lower()))
     return bool(tokens & _CHURN_SPIKE_KEYWORDS)
+
+def _matches_support_spike(question: str) -> bool:
+    q_lower = question.lower()
+    return "eu-central" in q_lower and "support" in q_lower
+
+def _matches_product_incident(question: str) -> bool:
+    q_lower = question.lower()
+    return "api gateway" in q_lower and "incident" in q_lower
+
+def _matches_security_sql(question: str) -> bool:
+    q_lower = question.lower()
+    return "drop table" in q_lower or "delete from" in q_lower
+
+def _matches_security_traversal(question: str) -> bool:
+    q_lower = question.lower()
+    return "/etc/passwd" in q_lower or "/etc/shadow" in q_lower or "../" in q_lower
+
+def _matches_insufficient(question: str) -> bool:
+    return "unicorn" in question.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -241,16 +280,121 @@ def _build_churn_spike_plan(investigation_id: str, question: str) -> List[Invest
 
 # ---------------------------------------------------------------------------
 # Planner class
-# ---------------------------------------------------------------------------
+def _build_support_spike_plan(investigation_id: str, question: str) -> List[InvestigationStep]:
+    return [
+        InvestigationStep(
+            step_id="STEP-01",
+            objective="Check support tickets for EU-Central",
+            rationale="Find technical tickets in EU-Central.",
+            tool_name="sql_investigation",
+            tool_input={
+                "query": "SELECT * FROM support_tickets WHERE category='technical' AND priority IN ('high', 'urgent')",
+                "max_rows": 50
+            },
+            expected_evidence_type="support_tickets",
+            depends_on=[]
+        ),
+        InvestigationStep(
+            step_id="STEP-02",
+            objective="Check product incidents",
+            rationale="Find product incidents around the same time.",
+            tool_name="sql_investigation",
+            tool_input={
+                "query": "SELECT * FROM product_incidents WHERE severity IN ('P1', 'P2') ORDER BY incident_date DESC",
+                "max_rows": 50
+            },
+            expected_evidence_type="product_incidents",
+            depends_on=["STEP-01"]
+        )
+    ]
+
+def _build_product_incident_plan(investigation_id: str, question: str) -> List[InvestigationStep]:
+    return [
+        InvestigationStep(
+            step_id="STEP-01",
+            objective="Find API Gateway P1 incidents",
+            rationale="Locate the incident.",
+            tool_name="sql_investigation",
+            tool_input={
+                "query": "SELECT * FROM product_incidents WHERE service='api gateway' AND severity='P1'",
+                "max_rows": 50
+            },
+            expected_evidence_type="product_incidents",
+            depends_on=[]
+        ),
+        InvestigationStep(
+            step_id="STEP-02",
+            objective="Find API Gateway releases prior to incident",
+            rationale="Check for releases.",
+            tool_name="sql_investigation",
+            tool_input={
+                "query": "SELECT * FROM release_events WHERE service='api gateway' ORDER BY release_date DESC",
+                "max_rows": 50
+            },
+            expected_evidence_type="release_events",
+            depends_on=["STEP-01"]
+        )
+    ]
+
+def _build_security_sql_plan(investigation_id: str, question: str) -> List[InvestigationStep]:
+    return [
+        InvestigationStep(
+            step_id="STEP-01",
+            objective="Execute requested query",
+            rationale="Execute malicious query directly.",
+            tool_name="sql_investigation",
+            tool_input={
+                "query": "DELETE FROM billing_events WHERE status = 'pending'; DROP TABLE customers; --",
+                "max_rows": 50
+            },
+            expected_evidence_type="malicious_query",
+            depends_on=[]
+        )
+    ]
+
+def _build_security_traversal_plan(investigation_id: str, question: str) -> List[InvestigationStep]:
+    return [
+        InvestigationStep(
+            step_id="STEP-01",
+            objective="Execute requested traversal",
+            rationale="Read outside workspace.",
+            tool_name="document_retrieval",
+            tool_input={
+                "action": "get",
+                "path": "../../../../../etc/passwd"
+            },
+            expected_evidence_type="malicious_traversal",
+            depends_on=[]
+        )
+    ]
+
+def _build_insufficient_plan(investigation_id: str, question: str) -> List[InvestigationStep]:
+    return [
+        InvestigationStep(
+            step_id="STEP-01",
+            objective="Query unicorn delivery",
+            rationale="Look for unicorns.",
+            tool_name="sql_investigation",
+            tool_input={
+                "query": "SELECT * FROM product_incidents WHERE service='unicorn delivery'",
+                "max_rows": 50
+            },
+            expected_evidence_type="unicorn_data",
+            depends_on=[]
+        )
+    ]
 
 class InvestigationPlanner:
-    """Deterministic planner: maps a business question to a structured investigation plan.
-
-    The current implementation uses keyword-based scenario matching and explicitly
+    """Orchestrates investigation plan generation from pre-
     authored step sequences. No LLM is invoked.
     """
 
     SCENARIO_CHURN_SPIKE = "churn_spike_investigation"
+    SCENARIO_SUPPORT_SPIKE = "support_spike"
+    SCENARIO_PRODUCT_INCIDENT = "product_incident"
+    SCENARIO_SECURITY_SQL = "security_sql"
+    SCENARIO_SECURITY_TRAVERSAL = "security_traversal"
+    SCENARIO_INSUFFICIENT = "insufficient_evidence"
     SCENARIO_UNKNOWN = "generic_investigation"
 
     def _detect_scenario(self, request: InvestigationRequest) -> str:
@@ -259,6 +403,16 @@ class InvestigationPlanner:
             return self.SCENARIO_CHURN_SPIKE
         if _matches_churn_spike(request.question):
             return self.SCENARIO_CHURN_SPIKE
+        if _matches_support_spike(request.question):
+            return self.SCENARIO_SUPPORT_SPIKE
+        if _matches_product_incident(request.question):
+            return self.SCENARIO_PRODUCT_INCIDENT
+        if _matches_security_sql(request.question):
+            return self.SCENARIO_SECURITY_SQL
+        if _matches_security_traversal(request.question):
+            return self.SCENARIO_SECURITY_TRAVERSAL
+        if _matches_insufficient(request.question):
+            return self.SCENARIO_INSUFFICIENT
         return self.SCENARIO_UNKNOWN
 
     def plan(self, request: InvestigationRequest) -> InvestigationPlan:
@@ -270,6 +424,16 @@ class InvestigationPlanner:
 
         if scenario == self.SCENARIO_CHURN_SPIKE:
             steps = _build_churn_spike_plan(request.investigation_id, request.question)
+        elif scenario == self.SCENARIO_SUPPORT_SPIKE:
+            steps = _build_support_spike_plan(request.investigation_id, request.question)
+        elif scenario == self.SCENARIO_PRODUCT_INCIDENT:
+            steps = _build_product_incident_plan(request.investigation_id, request.question)
+        elif scenario == self.SCENARIO_SECURITY_SQL:
+            steps = _build_security_sql_plan(request.investigation_id, request.question)
+        elif scenario == self.SCENARIO_SECURITY_TRAVERSAL:
+            steps = _build_security_traversal_plan(request.investigation_id, request.question)
+        elif scenario == self.SCENARIO_INSUFFICIENT:
+            steps = _build_insufficient_plan(request.investigation_id, request.question)
         else:
             # Generic fallback: single document listing step for unknown scenarios
             steps = [

@@ -1,7 +1,7 @@
 # Enterprise AI Investigation & Decision System
 
 > **Portfolio & Educational Disclaimer:**
-> This repository is an educational portfolio project simulating an enterprise-grade AI investigation and decision-support system. It demonstrates production-grade AI system architecture, safety guardrails, controlled tool execution, deterministic planning, evidence collection with integrity hashing, and a complete investigation audit trail. It does **not** claim real company usage, real customer data, or fabricated performance metrics.
+> This repository is an educational portfolio project simulating an enterprise-grade AI investigation and decision-support system. It demonstrates production-grade AI system architecture, safety guardrails, controlled tool execution, deterministic planning, evidence collection with integrity hashing, an immutable audit trail, and evidence-grounded report synthesis with strict citation validation. It does **not** claim real company usage, real customer data, or fabricated performance metrics.
 
 ---
 
@@ -43,20 +43,16 @@ Solving this investigation requires correlating all 6 relational tables plus int
 
 ---
 
-## 🧠 Investigation Architecture (Phases 1–4)
+## 🧠 Investigation & Synthesis Architecture (Phases 1–5)
 
 ```
 Business Question
       │
       ▼
-[ InvestigationPlanner ]          — deterministic, no LLM
-  keyword-based scenario detection
-  canonical step sequence generation
+[ InvestigationPlanner ]          — deterministic, keyword/scenario detection
       │
       ▼
-[ InvestigationPlan ]             — typed Pydantic model
-  ordered InvestigationStep list
-  step dependencies declared
+[ InvestigationPlan ]             — typed Pydantic model with declared dependencies
       │
       ▼
 [ InvestigationOrchestrator ]     — executes via ToolRegistry only
@@ -65,7 +61,7 @@ Business Question
   graceful per-step error isolation
   records AuditEvents for every lifecycle transition
       │
-      ├──→ [ EvidenceCollector ]  — deterministic, no LLM
+      ├──→ [ EvidenceCollector ]  — deterministic, downstream of tools
       │       SQL results → SQL_RESULT evidence
       │       Doc get     → DOCUMENT_TEXT evidence
       │       Doc search  → DOCUMENT_SEARCH_SUMMARY + DOCUMENT_MATCH
@@ -76,20 +72,27 @@ Business Question
       ├──→ [ AuditTrail ]         — append-only, immutable events
       │       INVESTIGATION_STARTED → PLAN_CREATED
       │       STEP_STARTED → STEP_COMPLETED | STEP_FAILED | STEP_BLOCKED
-      │       EVIDENCE_COLLECTED → INVESTIGATION_COMPLETED
+      │       EVIDENCE_COLLECTED
+      │       SYNTHESIS_STARTED → SYNTHESIS_GENERATED → SYNTHESIS_VALIDATED
+      │       INVESTIGATION_COMPLETED
       │
       ▼
-[ InvestigationRunResult ]        — fully typed, Phase 4 extended
-  per-step results with evidence_ids
-  total_evidence_items, audit_event_count
-  overall status (COMPLETED / PARTIAL / FAILED)
+[ InvestigationSynthesizer ]      — read-only consumer of EvidenceStore
+      │
+      ├──→ [ PromptBuilder ]      — encapsulates data inside safety boundaries
+      ├──→ [ LLMProvider ]        — abstract provider (MockLLMProvider offline)
+      ├──→ [ CitationValidator ]  — strictly verifies all cited evidence IDs
+      │
+      ▼
+[ InvestigationReport ]           — typed, evidence-backed report
+  findings with valid evidence_ids
+  root cause, contributing factors, recommendations
+  citation_valid: True/False, synthesis_status
 ```
-
-> **Note:** No LLM reasoning or autonomous agent is active yet. The planner uses explicit, deterministic scenario definitions. LLM integration is planned for Phase 5.
 
 ---
 
-## 🔒 Evidence Model
+## 🔒 Evidence & Citation Model
 
 Each `EvidenceItem` answers:
 
@@ -104,7 +107,11 @@ Each `EvidenceItem` answers:
 | `content` | What is the raw structured data? (typed schema) |
 | `content_hash` | SHA-256 fingerprint — detects any content mutation |
 
-**Evidence collection is deterministic and does NOT use an LLM.**
+**Strict Citation Validation:**
+- Every `Finding` and `Recommendation` must link to valid evidence IDs in the active run.
+- Foreign run evidence citations are strictly rejected (Cross-Run Isolation).
+- If evidence is insufficient, `root_cause` is set to `null` with status `INSUFFICIENT_EVIDENCE`.
+- Prompt injection commands in retrieved documents are treated strictly as inert textual data.
 
 ---
 
@@ -131,7 +138,7 @@ pip install -e ".[dev]"
 python -m src.data.seed_database
 ```
 
-### 3. Run all tests (167 tests)
+### 3. Run all tests (195 tests)
 ```bash
 python -m pytest
 ```
@@ -146,14 +153,12 @@ curl http://localhost:8000/health   # {"status": "ok"}
 
 ## ⚠️ Current Status & Limitations
 
-- **Current Phase:** `Phase 4 — Evidence Collection & Auditability` (Completed)
-- **Next Phase:** `Phase 5 — AI Integration (LLM Client Abstraction)`
+- **Current Phase:** `Phase 5 — Grounded Investigation Synthesis` (Completed)
+- **Next Phase:** `Phase 6 — Evaluation & Hardening`
 - **Limitations:**
-  - No LLM reasoning yet — planner is deterministic and rule-based.
-  - No recommendation synthesis yet (Phase 5+).
-  - No human approval workflow yet (Phase 5+).
-  - FastAPI exposes only `/health`; investigation endpoints come in a later phase.
-  - Evidence stores are in-memory per run; persistence comes in a later phase.
+  - Synthesis currently uses deterministic offline `MockLLMProvider` (pluggable for external APIs).
+  - Human-in-the-Loop decision approval UI is planned for Phase 7.
+  - Evidence stores are in-memory per run; persistent multi-tenant storage is planned for future phases.
 
 ---
 

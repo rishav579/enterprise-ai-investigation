@@ -81,12 +81,22 @@ class InvestigationOrchestrator:
     def __init__(self, registry: ToolRegistry, planner: Optional[InvestigationPlanner] = None):
         self.registry = registry
         self.planner = planner or InvestigationPlanner()
+        self.last_store: Optional[EvidenceStore] = None
+        self.last_audit: Optional[AuditTrail] = None
 
-    def run(self, request: InvestigationRequest) -> InvestigationRunResult:
+    def run(
+        self,
+        request: InvestigationRequest,
+        store: Optional[EvidenceStore] = None,
+        audit: Optional[AuditTrail] = None,
+    ) -> InvestigationRunResult:
         """Run a full investigation: plan → execute → collect evidence → audit."""
-        # Initialise per-run evidence store and audit trail
-        store = EvidenceStore(investigation_run_id=request.investigation_id)
-        audit = AuditTrail(investigation_run_id=request.investigation_id)
+        # Initialise per-run evidence store and audit trail if not provided
+        store = store or EvidenceStore(investigation_run_id=request.investigation_id)
+        audit = audit or AuditTrail(investigation_run_id=request.investigation_id)
+        self.last_store = store
+        self.last_audit = audit
+
         collector = EvidenceCollector(
             investigation_run_id=request.investigation_id,
             store=store,
@@ -344,3 +354,13 @@ class InvestigationOrchestrator:
             total_evidence_items=store.total_count,
             audit_event_count=audit.total_count,
         )
+
+    def run_with_context(
+        self,
+        request: InvestigationRequest,
+    ) -> tuple[InvestigationRunResult, EvidenceStore, AuditTrail]:
+        """Convenience method that returns the run result alongside the EvidenceStore and AuditTrail."""
+        store = EvidenceStore(investigation_run_id=request.investigation_id)
+        audit = AuditTrail(investigation_run_id=request.investigation_id)
+        result = self.run(request, store=store, audit=audit)
+        return result, store, audit

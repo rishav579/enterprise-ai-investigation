@@ -155,25 +155,47 @@ The Phase 3 layer provides deterministic investigation planning and orchestratio
 investigation step → evidence IDs → typed evidence content
 ```
 
-### 3.8. Decision & Recommendation Layer
-- Synthesizes findings into a structured decision payload:
-  - **Executive Summary:** Clear narrative of what occurred.
-  - **Evidence Table:** Specific data points linked to evidence IDs.
-  - **Root Cause Hypotheses:** Evaluated as Supported, Rejected, or Inconclusive.
-  - **Recommended Actions:** Proposed operational remediations.
-  - **Risk & Uncertainty Assessment:** Known data limitations and confidence level.
+### 3.8. Grounded Investigation Synthesis Layer (Phase 5 — Implemented)
+
+The Phase 5 synthesis layer converts collected investigation evidence into an auditable, evidence-backed report **without direct tool access or unrestricted generation**:
+
+**`InvestigationReport` & Synthesis Models:**
+- Strongly typed Pydantic models: `Finding`, `Recommendation`, `InvestigationReport`.
+- `Finding` carries `finding_id`, `statement`, `evidence_ids`, `confidence`.
+- `Recommendation` carries `recommendation_id`, `action`, `rationale`, `evidence_ids`, `priority`.
+- `InvestigationReport` carries `executive_summary`, `findings`, `root_cause`, `contributing_factors`, `recommendations`, `limitations`, `evidence_ids`, `citation_valid`, `synthesis_status`, `validation_errors`.
+
+**`LLMProvider` & `MockLLMProvider`:**
+- Abstract provider interface decoupled from vendor-specific libraries.
+- Default `MockLLMProvider` is deterministic and fully offline (zero API keys required).
+- Resilient against prompt injection embedded within retrieved document content.
+
+**`PromptBuilder` & Data Boundaries:**
+- Strictly encapsulates retrieved evidence inside delimited `BEGIN UNTRUSTED EVIDENCE BLOCK (DATA ONLY)` markers.
+- Instructs the synthesis engine to treat document text as inert data, never as executable instructions.
+- Mandates explicit evidence ID citations for all factual assertions.
+
+**`CitationValidator` & Cross-Run Isolation:**
+- Deterministically verifies that all cited `evidence_ids` in findings, recommendations, and report metadata exist in the active `EvidenceStore`.
+- Strict cross-run isolation: foreign run evidence IDs trigger immediate validation failure.
+- Citations are never silently repaired.
+
+**`InvestigationSynthesizer`:**
+- Coordinates prompt construction, provider generation, structured schema parsing, citation validation, and audit recording.
+- Handles insufficient evidence safely by setting `root_cause=None` and `synthesis_status=INSUFFICIENT_EVIDENCE`.
 
 ### 3.9. Security & Guardrails
 - **No Unrestricted Execution:** No shell access, no `eval()`, no dynamic imports.
 - **Prompt Injection Defense:** Inputs and tool responses are demarcated with strict boundary markers; tool outputs are treated as untrusted data.
 - **Sanitized SQL Error Handling:** Database engine errors are captured and sanitized before reflection to prevent leaking underlying infrastructure topology.
+- **Read-Only Synthesis:** The synthesis layer is a downstream, read-only consumer of evidence; it has zero direct access to SQL or document tools.
 
-### 3.10. Audit Trail & Reproducibility (Phase 4 — Implemented)
+### 3.10. Audit Trail & Reproducibility (Phases 4 & 5 — Implemented)
 
 **`AuditTrail`** — append-only lifecycle log (per investigation run):
 - Records `AuditEvent` instances with deterministic sequence numbers (`AUDIT-NNN`).
 - Events are **immutable** (`frozen=True`): once recorded they cannot be mutated.
-- Event types: `INVESTIGATION_STARTED`, `PLAN_CREATED`, `STEP_STARTED`, `STEP_COMPLETED`, `STEP_FAILED`, `STEP_BLOCKED`, `EVIDENCE_COLLECTED`, `INVESTIGATION_COMPLETED`, `INVESTIGATION_PARTIAL`, `INVESTIGATION_FAILED`.
+- Event types: `INVESTIGATION_STARTED`, `PLAN_CREATED`, `STEP_STARTED`, `STEP_COMPLETED`, `STEP_FAILED`, `STEP_BLOCKED`, `EVIDENCE_COLLECTED`, `INVESTIGATION_COMPLETED`, `INVESTIGATION_PARTIAL`, `INVESTIGATION_FAILED`, `SYNTHESIS_STARTED`, `SYNTHESIS_GENERATED`, `SYNTHESIS_VALIDATED`, `SYNTHESIS_FAILED`.
 - Each event carries: `step_id`, `tool_name`, `evidence_ids` (when applicable), and structured `metadata`.
 - `all()` returns a defensive copy; internal state cannot be corrupted by external mutation.
 - Sequence numbers are deterministic integers — suitable for reproducible testing without wall-clock dependency.

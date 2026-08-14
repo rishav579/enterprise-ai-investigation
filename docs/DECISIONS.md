@@ -101,3 +101,19 @@ This document records the foundational architectural decisions made for the **En
 - **Consequences:**
   - *Positive:* Any change to evidence content — whether accidental or malicious — is detectable by recomputing the hash. Hash stability tests run deterministically in CI.
   - *Trade-off:* The hash alone does not prevent tampering (for that, a HMAC or digital signature scheme would be needed). It provides tamper *detection*, not tamper *prevention* — appropriate for this project stage.
+
+---
+
+## ADR 009: Evidence-Constrained Synthesis and Strict Citation Validation
+
+- **Status:** Accepted
+- **Date:** Phase 5 (Grounded Investigation Synthesis)
+- **Context:** An AI synthesis model generating investigation reports can hallucinate facts, claim tool invocations that never occurred, or cite non-existent/cross-run evidence IDs. In enterprise root-cause investigations, reports must be strictly grounded in verified evidence, immune to prompt injection from retrieved data, and auditable.
+- **Decision:** Implement a layered, evidence-constrained synthesis architecture:
+  1. **Strict Data Boundary:** Treat all retrieved documents and tool outputs as inert `DATA ONLY` within explicit prompt boundary markers. Instructions inside documents are never executed.
+  2. **Provider Abstraction:** Decouple report generation behind an abstract `LLMProvider` interface, with a default deterministic `MockLLMProvider` allowing offline execution without third-party API dependencies or API keys.
+  3. **Strict Post-Synthesis Citation Validation:** Every `Finding` and `Recommendation` must pass through `CitationValidator` which asserts that all cited `evidence_ids` exist within the current run's `EvidenceStore`. Any unknown, missing, or cross-run foreign evidence IDs trigger immediate validation failure (`citation_valid=False`, `synthesis_status=VALIDATION_FAILED`). Citations are never silently repaired.
+  4. **Explicit Insufficient Evidence Handling:** When evidence is missing or incomplete, the synthesizer sets `root_cause=None` and `synthesis_status=INSUFFICIENT_EVIDENCE` rather than speculating.
+- **Consequences:**
+  - *Positive:* Zero hallucinated citations in accepted reports, cross-run data isolation guaranteed, reproducible offline testing, robust against prompt injections in retrieved enterprise text.
+  - *Trade-off:* Requires two-pass validation (prompt-level schema generation + post-generation citation graph validation).

@@ -34,6 +34,11 @@ class AuditEventType(str, Enum):
     INVESTIGATION_COMPLETED      = "investigation_completed"
     INVESTIGATION_FAILED         = "investigation_failed"
     INVESTIGATION_PARTIAL        = "investigation_partial"
+    # Phase 5: Synthesis lifecycle events
+    SYNTHESIS_STARTED            = "synthesis_started"
+    SYNTHESIS_GENERATED          = "synthesis_generated"
+    SYNTHESIS_VALIDATED          = "synthesis_validated"
+    SYNTHESIS_FAILED             = "synthesis_failed"
 
 
 # ---------------------------------------------------------------------------

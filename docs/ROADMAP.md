@@ -82,12 +82,18 @@ Foundations Enterprise  Controlled   Investigation Evidence &
 
 ---
 
-### Phase 5 — AI Integration
-- [ ] Build the provider-agnostic LLM interface (`LLMClient` abstraction).
-- [ ] Implement concrete adapters (OpenAI, Anthropic, Ollama / Local Models).
-- [ ] Design structured prompt templates with strict schema enforcement (JSON output parsing via Pydantic).
-- [ ] Implement fallback and retry logic for structured parsing failures.
-- [ ] Verify end-to-end investigation runs with real/mocked model responses.
+### Phase 5 — Grounded Investigation Synthesis
+- [x] Strongly typed synthesis domain models (`InvestigationReport`, `Finding`, `Recommendation`, `ConfidenceLevel`, `PriorityLevel`, `SynthesisStatus`).
+- [x] Provider-agnostic `LLMProvider` interface with deterministic, fully offline `MockLLMProvider`.
+- [x] Evidence-constrained prompt builder (`PromptBuilder`) with clear prompt injection data boundaries.
+- [x] Deterministic citation validation (`CitationValidator`) enforcing same-run provenance for every cited evidence ID.
+- [x] Cross-run isolation: foreign run evidence IDs are strictly rejected.
+- [x] Graceful insufficient evidence handling: returns `root_cause=None` and `INSUFFICIENT_EVIDENCE` status without hallucinating.
+- [x] Robust prompt-injection defense: documents with malicious commands are treated strictly as data.
+- [x] Integrated `InvestigationSynthesizer` service connecting orchestrator, evidence store, prompt builder, provider, and validator.
+- [x] Audit trail integration with `SYNTHESIS_STARTED`, `SYNTHESIS_GENERATED`, `SYNTHESIS_VALIDATED`, `SYNTHESIS_FAILED` events.
+- [x] FastAPI `/investigations/investigate` endpoint executing end-to-end investigation and synthesis.
+- [x] Complete unit, integration, and evaluation test suite (195 tests total, 0 failures).
 
 ---
 

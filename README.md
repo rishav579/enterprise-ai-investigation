@@ -138,9 +138,11 @@ The system includes a dedicated, responsive operations web interface built with 
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Getting Started & Deployment
 
-### 1. Backend Setup & Test Suite
+### 1. Local Development (Decoupled Workflow)
+
+#### Backend Setup
 ```bash
 # Install Python dependencies
 pip install -e ".[dev]"
@@ -148,22 +150,22 @@ pip install -e ".[dev]"
 # Seed the enterprise SQLite database
 python -m src.data.seed_database
 
-# Run complete backend pytest suite (195 tests)
+# Run complete backend pytest suite (197 tests)
 python -m pytest
 
-# Run offline golden evaluation benchmark runner
+# Run offline golden evaluation benchmark runner (6/6 passing)
 python run_evaluation.py
 
 # Start FastAPI backend server on port 8000
 python -m uvicorn src.api.main:app --reload --port 8000
 ```
 
-### 2. Frontend Workspace Setup & Tests
+#### Frontend Setup
 ```bash
-# Navigate to frontend
+# Navigate to frontend directory
 cd frontend
 
-# Install dependencies
+# Install npm dependencies
 npm install
 
 # Run frontend test suite (32 tests across 8 test suites)
@@ -176,7 +178,70 @@ npm run build
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser to interact with the investigation console.
+Open `http://localhost:5173` to interact with the investigation console in development mode.
+
+---
+
+### 2. Production Single-Port Deployment (Unified Mode)
+
+The FastAPI server automatically serves the compiled production React SPA when `frontend/dist` is present:
+
+```bash
+# 1. Build the frontend bundle
+cd frontend && npm run build && cd ..
+
+# 2. Start the unified application on port 8000
+python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+```
+
+Access both the UI and API directly at `http://localhost:8000`.
+
+---
+
+### 3. Containerized Deployment (Docker & Docker Compose)
+
+#### Using Docker
+```bash
+# Build multi-stage container image
+docker build -t enterprise-ai-investigation .
+
+# Run containerized application
+docker run -p 8000:8000 enterprise-ai-investigation
+```
+
+#### Using Docker Compose
+```bash
+# Start containerized application with health checks and volume persistence
+docker compose up -d
+
+# Check health and container logs
+docker compose ps
+docker compose logs -f
+```
+
+---
+
+## ⚙️ Environment Variables
+
+Configuration parameters are managed via environment variables (or `.env` file):
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `APP_HOST` | `0.0.0.0` | Backend bind host |
+| `APP_PORT` | `8000` | Backend HTTP listening port |
+| `APP_DEBUG` | `false` | Enable debug logging |
+| `APP_DATABASE_URL` | `sqlite:///data/enterprise.db` | SQLAlchemy database connection string |
+| `APP_RANDOM_SEED` | `42` | Deterministic random seed for synthetic dataset generation |
+| `APP_SYNTHETIC_CUSTOMER_COUNT` | `500` | Number of synthetic customers generated |
+| `APP_CORS_ORIGINS` | `http://localhost:5173,...` | Comma-separated list of allowed CORS origins, or `*` |
+| `VITE_API_BASE_URL` | `""` (same origin) | Frontend API endpoint URL override for decoupled hosting |
+
+---
+
+## 🔍 Health & Readiness Endpoints
+
+- **Liveness Health Check:** `GET /health` &rarr; Returns `{"status": "ok"}` (HTTP 200).
+- **Readiness Health Check:** `GET /ready` &rarr; Verifies active database connection and system readiness (HTTP 200).
 
 ---
 
@@ -199,15 +264,16 @@ python run_evaluation.py
 
 ## ⚠️ Current Status & Architecture Invariants
 
-- **Current Phase:** `Phase 7 — Frontend Investigation Workspace` (Completed & Verified)
-- **Next Phase:** `Phase 8 — Deployment` (Planned)
+- **Current Phase:** `Phase 8 — Production Deployment` (Completed & Verified)
+- **Next Phase:** `Phase 9 — Portfolio Finalization` (Planned)
 - **Verification & Test Status:**
-  - Backend: 195/195 tests passing (`python -m pytest`)
+  - Backend: 197/197 tests passing (`python -m pytest`)
   - Frontend: 32/32 tests passing across 8 suites (`npm test`)
   - Evaluation Harness: 6/6 golden evaluation scenarios passing (`python run_evaluation.py`)
   - Production Bundle: `npm run build` cleanly compiled with TypeScript checks
+  - Local Production Verification: 8/8 end-to-end smoke checks passing against unified port 8000
 - **Current Limitations & Operational Boundaries:**
-  - **No Public Deployment:** The system is currently verified for local development and demonstration; containerized deployment and Docker Compose orchestrations are scheduled for Phase 8.
+  - **Deployment Readiness:** Dockerfile, `docker-compose.yml`, environment templates, and unified static SPA hosting are verified locally. Cloud hosting on public platforms (e.g. Render, Railway, Fly.io, AWS) requires external account provisioning.
   - **Offline Provider:** Grounded synthesis utilizes the deterministic offline `MockLLMProvider` (pluggable for enterprise OpenAI/Anthropic SDK adapters).
   - **Zero-Fabrication Invariant:** All factual findings and recommendations must link to valid evidence IDs verified against the immutable `EvidenceStore`.
   - **Zero-Network Invariant:** Capable of running in fully offline / air-gapped test and review environments without API keys or external telemetry dependencies.
@@ -219,4 +285,5 @@ python run_evaluation.py
 - [Architecture Specification (ARCHITECTURE.md)](docs/ARCHITECTURE.md)
 - [Project Roadmap (ROADMAP.md)](docs/ROADMAP.md)
 - [Architecture Decision Records (DECISIONS.md)](docs/DECISIONS.md)
+
 

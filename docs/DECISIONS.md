@@ -133,3 +133,21 @@ This document records the foundational architectural decisions made for the **En
   - *Positive:* Fast hot-reloading development workflow, type-safe API consumption, clean UI hierarchy mimicking real internal cybersecurity / operational incident consoles, zero heavy state-management boilerplate.
   - *Trade-off:* Requires running a separate Vite development server or serving static build assets alongside FastAPI.
 
+---
+
+## ADR 011: Containerized Production Deployment Architecture (Multi-Stage Docker + Docker Compose + Static SPA Mount)
+
+- **Status:** Accepted
+- **Date:** Phase 8 (Production Deployment)
+- **Context:** To deploy the system cleanly as a real-world enterprise portfolio application, the architecture must support both decoupled local development (Vite dev server + FastAPI backend) and streamlined, single-port production deployments (Render, Railway, Fly.io, Google Cloud Run, AWS App Runner, or Docker Compose). Introducing heavyweight infrastructure like Kubernetes, Redis, or microservices is unnecessary and violates the lean deployment principle.
+- **Decision:** Implement a multi-stage containerized deployment architecture:
+  1. **Multi-Stage Dockerfile:** Stage 1 compiles the frontend TypeScript bundle using `node:20-slim`. Stage 2 copies the compiled static distribution into a lean `python:3.12-slim` image alongside backend dependencies and application code.
+  2. **Static SPA Direct Mounting in FastAPI:** When the static `dist/` directory exists, FastAPI mounts it on `/`, serving `index.html` and compiled assets while keeping all API routes (`/health`, `/ready`, `/investigations/...`, `/docs`) prioritized.
+  3. **Dynamic CORS Configuration:** Support environment variable override (`APP_CORS_ORIGINS`) while maintaining default local development origins.
+  4. **Self-Contained Database Initialization:** FastAPI lifespan checks for the presence of the SQLite database and auto-seeds on first launch if uninitialized, eliminating manual bootstrap steps.
+  5. **Standard Docker Compose:** Provides unified local container orchestration with health checks and persistent volume mounts.
+- **Consequences:**
+  - *Positive:* Zero external infrastructure requirements, seamless single-port hosting on cloud PaaS providers, fast build times, 100% reproducible deployment across any container environment.
+  - *Trade-off:* In a single-container deployment, frontend asset requests share compute resources with backend API processes. For heavy enterprise traffic, decoupled CDN + API hosting can be enabled simply by setting `VITE_API_BASE_URL` and `APP_CORS_ORIGINS`.
+
+

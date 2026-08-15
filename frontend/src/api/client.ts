@@ -9,12 +9,12 @@ import type {
   ScenarioItem,
 } from './types';
 
-// Default to backend on 8000 during local dev, or proxy/env override
+// Resolve API base: explicit VITE_API_BASE_URL -> local Vite dev (port 5173/3000) -> same-origin relative path
 const DEFAULT_API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  (typeof window !== 'undefined' && (window.location.port === '5173' || window.location.port === '3000')
     ? 'http://localhost:8000'
-    : '/api');
+    : '');
 
 export class ApiError extends Error {
   status: number;

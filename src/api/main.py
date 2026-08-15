@@ -1,11 +1,16 @@
 """FastAPI application entrypoint for Enterprise AI Investigation System."""
 
 import json
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from src.config.settings import PROJECT_ROOT, settings
+from src.data.database import get_db_session
 from src.investigation.audit import AuditEvent
 from src.investigation.evidence import EvidenceItem
 from src.investigation.models import InvestigationRequest, InvestigationRunResult
@@ -14,23 +19,32 @@ from src.synthesis.models import InvestigationReport
 from src.synthesis.synthesizer import InvestigationSynthesizer
 from src.tools.registry import create_default_tool_registry
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup and shutdown lifespan handler."""
+    # Ensure database is seeded on startup if database file is missing
+    db_file = PROJECT_ROOT / "data" / "enterprise.db"
+    if not db_file.exists():
+        try:
+            from src.data.seed_database import seed_enterprise_database
+            seed_enterprise_database()
+        except Exception:
+            pass
+    yield
+
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="Enterprise AI Investigation & Decision System (Simulation & Portfolio)",
+    lifespan=lifespan,
 )
 
-# Explicit CORS configuration for local frontend development
-ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-
+# Dynamic CORS configuration supporting environment variable override
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=settings.allowed_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
@@ -54,8 +68,29 @@ class FullInvestigationResponse(BaseModel):
 
 @app.get("/health")
 async def health_check() -> dict:
-    """Basic health check endpoint."""
+    """Basic liveness health check endpoint."""
     return {"status": "ok"}
+
+
+@app.get("/ready")
+async def readiness_check() -> dict:
+    """Readiness check endpoint verifying database connectivity and system state."""
+    try:
+        session = get_db_session()
+        session.execute(text("SELECT 1"))
+        session.close()
+        return {
+            "status": "ready",
+            "database": "connected",
+            "app": settings.app_name,
+            "version": settings.app_version,
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Database connectivity check failed: {str(e)}",
+        )
+
 
 
 @app.get("/investigations/scenarios")
@@ -152,4 +187,15 @@ async def run_full_investigation(payload: SynthesizeRequestPayload) -> FullInves
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Investigation failed: {str(e)}")
+
+
+# Mount frontend static distribution directory if built (production single-container deployment)
+_dist_path = (
+    Path(settings.frontend_dist_dir)
+    if settings.frontend_dist_dir
+    else PROJECT_ROOT / "frontend" / "dist"
+)
+if _dist_path.exists() and (_dist_path / "index.html").exists():
+    app.mount("/", StaticFiles(directory=str(_dist_path), html=True), name="static")
+
 

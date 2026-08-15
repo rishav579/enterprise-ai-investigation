@@ -220,8 +220,21 @@ The Phase 7 single-page web interface provides an interactive, high-fidelity ope
 - **Actionable Remediation & Human Sign-Off (`RecommendationsSection`):** Prioritized operational action items paired with an interactive **Human Review Simulation** allowing simulated approval, rejection, and additional evidence requests without unsafe backend side-effects.
 - **Sequential Audit Stream (`AuditTrailStream`):** Filterable, chronological trace of immutable lifecycle events (`AUDIT-001`, `AUDIT-002`, etc.) with event type pills and step mappings.
 
-### 3.14. Future Scaling Path
+### 3.14. Production Deployment Architecture (Phase 8 — Implemented)
+
+The system supports both distributed decoupled hosting and unified single-container execution:
+
+- **Unified Single-Port Container (`Dockerfile`):** Multi-stage build compiling the Vite frontend with Node 20 and bundling it directly into a Python 3.12 slim container. FastAPI automatically serves the SPA on `/` when static build files are detected in `frontend/dist/`.
+- **Local Orchestration (`docker-compose.yml`):** Zero-configuration local deployment with persistent data volumes and integrated `/health` checks.
+- **Readiness & Liveness Endpoints:**
+  - `GET /health`: Fast liveness check returning HTTP 200 `{"status": "ok"}`.
+  - `GET /ready`: Readiness check verifying database connectivity and configuration readiness.
+- **Self-Initializing Database:** FastAPI startup lifespan automatically seeds SQLite enterprise records if uninitialized, ensuring zero-configuration deployment on serverless or ephemeral container runtimes.
+- **Dynamic CORS Middleware:** Configurable via `APP_CORS_ORIGINS` to allow secure cross-origin requests from decoupled frontends (e.g. Vercel, Netlify) or internal corporate proxies.
+
+### 3.15. Future Scaling Path
 - **Async Execution:** Celery or Redis-backed background worker queue for long-running investigations.
 - **Multi-Tenant Data Isolation:** Tenant-scoped database schemas and vector search namespaces.
 - **Enterprise RBAC:** Role-based access control governing which analysts can approve specific high-impact recommendations.
+
 

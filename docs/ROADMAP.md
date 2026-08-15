@@ -120,10 +120,11 @@ Foundations Enterprise  Controlled   Investigation Evidence &
 ---
 
 ### Phase 8 — Deployment
-- [ ] Create Dockerfile for containerized backend execution.
-- [ ] Create `docker-compose.yml` for unified local setup (API, Database, Frontend).
-- [ ] Implement health check endpoints (`/health`, `/ready`).
-- [ ] Add environment configuration templates (`.env.example`).
+- [x] Create multi-stage Dockerfile for containerized unified execution (Node frontend build + Python 3.12 slim runtime).
+- [x] Create `docker-compose.yml` for unified local setup and container orchestration.
+- [x] Implement comprehensive health and readiness check endpoints (`/health`, `/ready`).
+- [x] Add environment configuration template (`.env.example`) and dynamic CORS configuration.
+- [x] Support single-port production SPA static mounting directly from FastAPI.
 
 ---
 

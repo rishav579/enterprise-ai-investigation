@@ -109,10 +109,13 @@ Foundations Enterprise  Controlled   Investigation Evidence &
 ---
 
 ### Phase 7 — Frontend
-- [ ] Build a clean, responsive web interface for interacting with investigations.
-- [ ] Interactive timeline showing investigation steps, tool executions, and raw evidence.
-- [ ] Evidence inspector with SQL query view and document viewer.
-- [ ] Decision approval dashboard with explicit human sign-off actions.
+- [x] Build a clean, responsive web interface for interacting with investigations (React 19 + TypeScript + Vite).
+- [x] Interactive timeline showing ordered investigation steps, tool executions, and raw evidence artifacts.
+- [x] Evidence inspector drawer with formatted SQL query / data grid view, document excerpts, and SHA-256 hash validation.
+- [x] Grounded synthesis report view with 100% verified citation badges and root cause breakdown.
+- [x] Human review workflow simulation with explicit sign-off / reject / request-more-evidence actions.
+- [x] Comprehensive frontend unit and integration test suite (32 tests passing).
+- [x] Production build verification and end-to-end local HTTP smoke test.
 
 ---
 

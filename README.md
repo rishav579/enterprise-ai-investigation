@@ -126,43 +126,89 @@ Each `EvidenceItem` answers:
 
 ---
 
+## 🖥️ Frontend Investigation Workspace (Phase 7)
+
+The system includes a dedicated, responsive operations web interface built with **React 19**, **TypeScript**, and **Vite** located in `frontend/`:
+
+- **Interactive Investigation Timeline:** Real-time step inspection displaying status pills, tool dispatches, query payloads, row counts, and collected artifact tokens.
+- **Evidence Inspector Drawer:** Deep inspection modal for raw SQL data grids, full document text excerpts, query provenance, and canonical SHA-256 tamper-evident hash validation.
+- **Synthesized Findings & Root Cause View:** Structured executive summary, primary root cause alert box, confidence badges (`HIGH`, `MEDIUM`, `LOW`), and strict `100% Verified` citation tokens.
+- **Human Review Simulation:** Explicit simulated human authorization workflow ("Approve", "Reject", "Request More Evidence") with review logs and timestamped reviewer notes.
+- **Immutable Audit Log Stream:** Filterable chronological stream of lifecycle transitions (`INVESTIGATION_STARTED`, `PLAN_CREATED`, `STEP_COMPLETED`, `EVIDENCE_COLLECTED`, `SYNTHESIS_VALIDATED`).
+
+---
+
 ## 🚀 Getting Started
 
-### 1. Install dependencies
+### 1. Backend Setup & Test Suite
 ```bash
+# Install Python dependencies
 pip install -e ".[dev]"
-```
 
-### 2. Seed the database
-```bash
+# Seed the enterprise SQLite database
 python -m src.data.seed_database
-```
 
-### 3. Run all tests (195 tests)
-```bash
+# Run complete backend pytest suite (195 tests)
 python -m pytest
+
+# Run offline golden evaluation benchmark runner
+python run_evaluation.py
+
+# Start FastAPI backend server on port 8000
+python -m uvicorn src.api.main:app --reload --port 8000
 ```
 
-### 4. Start the API server
+### 2. Frontend Workspace Setup & Tests
 ```bash
-uvicorn src.api.main:app --reload --port 8000
-curl http://localhost:8000/health   # {"status": "ok"}
+# Navigate to frontend
+cd frontend
+
+# Install dependencies
+npm install
+
+# Run frontend test suite (32 tests across 8 test suites)
+npm test
+
+# Build production bundle
+npm run build
+
+# Start local Vite development server on port 5173
+npm run dev
+```
+
+Open `http://localhost:5173` in your browser to interact with the investigation console.
+
+---
+
+## 🧪 Deterministic Evaluation & Benchmark (Phase 6)
+
+The project includes an offline **Golden Evaluation Dataset** (`src/evaluation/`) testing multi-domain scenarios:
+- `scenario_A_churn`: Q3 Customer Churn Spike (100% evidence recall, exact root cause identification).
+- `scenario_B_support_spike`: Regional support SLA degradation.
+- `scenario_C_product_incident`: API Gateway P1 incident correlation.
+- `scenario_D_insufficient`: Insufficient evidence handling (zero-hallucination verification).
+- `scenario_E_security_sql`: SQL mutation rejection (DELETE/DROP blocked).
+- `scenario_F_security_traversal`: Path traversal boundary rejection.
+
+Run evaluation locally:
+```bash
+python run_evaluation.py
 ```
 
 ---
 
-## ⚠️ Current Status & Limitations
+## ⚠️ Current Status & Architecture Invariants
 
-- **Current Phase:** `Phase 5 — Grounded Investigation Synthesis` (Completed)
-- **Next Phase:** `Phase 6 — Evaluation & Hardening`
-- **Limitations:**
-  - Synthesis currently uses deterministic offline `MockLLMProvider` (pluggable for external APIs).
-  - Human-in-the-Loop decision approval UI is planned for Phase 7.
-  - Evidence stores are in-memory per run; persistent multi-tenant storage is planned for future phases.
+- **Current Phase:** `Phase 7 — Frontend Investigation Workspace` (Completed & Verified)
+- **Next Phase:** `Phase 8 — Deployment & Containerization` (Planned)
+- **Zero-Fabrication Invariant:** All factual claims strictly cite valid evidence IDs from the active run.
+- **Zero-Network Invariant:** Offline execution capability via deterministic `MockLLMProvider` (pluggable for production LLM adapters).
+- **Human Review Simulation:** The frontend provides a safe, clearly labeled simulation of internal decision sign-off without executing arbitrary unverified backend mutations.
 
 ---
 
 ## 📚 Documentation
-- [Architecture (ARCHITECTURE.md)](docs/ARCHITECTURE.md)
-- [Roadmap (ROADMAP.md)](docs/ROADMAP.md)
+- [Architecture Specification (ARCHITECTURE.md)](docs/ARCHITECTURE.md)
+- [Project Roadmap (ROADMAP.md)](docs/ROADMAP.md)
 - [Architecture Decision Records (DECISIONS.md)](docs/DECISIONS.md)
+

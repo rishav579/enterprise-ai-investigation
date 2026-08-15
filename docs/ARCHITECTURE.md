@@ -209,7 +209,19 @@ The Phase 5 synthesis layer converts collected investigation evidence into an au
   - **Safety Compliance:** 100% rejection rate for unsafe queries (mutations, out-of-scope schemas).
 - **Zero Fabricated Numbers:** All benchmarks run deterministically via automated pytest test suites.
 
-### 3.12. Future Scaling Path
+### 3.13. Frontend Investigation Workspace (Phase 7 — Implemented)
+
+The Phase 7 single-page web interface provides an interactive, high-fidelity operations workspace built with **React 19**, **TypeScript**, and **Vite**:
+
+- **Centralized API Integration (`src/api/client.ts`):** Strictly typed communication with FastAPI `/investigations/investigate`, `/health`, and `/investigations/scenarios`. Includes timeout handling and structured error handling.
+- **Dynamic Timeline View (`InvestigationTimeline`):** Real-time ordered breakdown of planned steps, tool dispatches (`sql_investigation` / `document_retrieval`), row counts, and collected artifact tokens.
+- **Evidence Inspector Drawer (`EvidenceInspector`):** Inspects raw SQL rows/columns, document excerpts, query references, and verifies the canonical **SHA-256 content hash** for data integrity.
+- **Grounded Report & Citation Badges (`FindingsSection`):** High-contrast executive summary, primary root cause alert box, grounded findings with confidence badges (`HIGH`, `MEDIUM`, `LOW`), and citation badges verifying 100% provenance against the `EvidenceStore`.
+- **Actionable Remediation & Human Sign-Off (`RecommendationsSection`):** Prioritized operational action items paired with an interactive **Human Review Simulation** allowing simulated approval, rejection, and additional evidence requests without unsafe backend side-effects.
+- **Sequential Audit Stream (`AuditTrailStream`):** Filterable, chronological trace of immutable lifecycle events (`AUDIT-001`, `AUDIT-002`, etc.) with event type pills and step mappings.
+
+### 3.14. Future Scaling Path
 - **Async Execution:** Celery or Redis-backed background worker queue for long-running investigations.
 - **Multi-Tenant Data Isolation:** Tenant-scoped database schemas and vector search namespaces.
 - **Enterprise RBAC:** Role-based access control governing which analysts can approve specific high-impact recommendations.
+

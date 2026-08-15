@@ -117,3 +117,19 @@ This document records the foundational architectural decisions made for the **En
 - **Consequences:**
   - *Positive:* Zero hallucinated citations in accepted reports, cross-run data isolation guaranteed, reproducible offline testing, robust against prompt injections in retrieved enterprise text.
   - *Trade-off:* Requires two-pass validation (prompt-level schema generation + post-generation citation graph validation).
+
+---
+
+## ADR 010: Enterprise Investigation Workspace Frontend (React + TypeScript + Vite)
+
+- **Status:** Accepted
+- **Date:** Phase 7 (Frontend Investigation Workspace)
+- **Context:** Reviewers, analysts, and recruiters need an interactive, high-fidelity visual console to run investigations, step through multi-stage tool execution timelines, inspect raw SQL/document evidence with cryptographic hashes, review synthesized findings with verified citation badges, and interact with human approval workflows.
+- **Decision:** Build a lightweight, dedicated single-page application in `frontend/` using **React 19**, **TypeScript**, **Vite**, and **Tailwind CSS/CSS utility design**.
+  - Direct integration with the FastAPI backend via a centralized, typed API client (`src/api/client.ts`).
+  - Interactive components for Timeline steps, Findings & Root Cause analysis, Evidence Inspector with SQL table rendering and document excerpt highlights, Audit Trail stream, and clearly labeled Human Review Simulation.
+  - Explicit CORS configuration on the backend restricting access to standard local development origins.
+- **Consequences:**
+  - *Positive:* Fast hot-reloading development workflow, type-safe API consumption, clean UI hierarchy mimicking real internal cybersecurity / operational incident consoles, zero heavy state-management boilerplate.
+  - *Trade-off:* Requires running a separate Vite development server or serving static build assets alongside FastAPI.
+

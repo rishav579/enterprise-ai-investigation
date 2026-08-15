@@ -62,3 +62,11 @@ coverage.xml
 *.sqlite3
 data/*.db
 data/enterprise.db
+
+# Frontend / Node.js
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+.eslintcache
+

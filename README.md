@@ -200,10 +200,18 @@ python run_evaluation.py
 ## ⚠️ Current Status & Architecture Invariants
 
 - **Current Phase:** `Phase 7 — Frontend Investigation Workspace` (Completed & Verified)
-- **Next Phase:** `Phase 8 — Deployment & Containerization` (Planned)
-- **Zero-Fabrication Invariant:** All factual claims strictly cite valid evidence IDs from the active run.
-- **Zero-Network Invariant:** Offline execution capability via deterministic `MockLLMProvider` (pluggable for production LLM adapters).
-- **Human Review Simulation:** The frontend provides a safe, clearly labeled simulation of internal decision sign-off without executing arbitrary unverified backend mutations.
+- **Next Phase:** `Phase 8 — Deployment` (Planned)
+- **Verification & Test Status:**
+  - Backend: 195/195 tests passing (`python -m pytest`)
+  - Frontend: 32/32 tests passing across 8 suites (`npm test`)
+  - Evaluation Harness: 6/6 golden evaluation scenarios passing (`python run_evaluation.py`)
+  - Production Bundle: `npm run build` cleanly compiled with TypeScript checks
+- **Current Limitations & Operational Boundaries:**
+  - **No Public Deployment:** The system is currently verified for local development and demonstration; containerized deployment and Docker Compose orchestrations are scheduled for Phase 8.
+  - **Offline Provider:** Grounded synthesis utilizes the deterministic offline `MockLLMProvider` (pluggable for enterprise OpenAI/Anthropic SDK adapters).
+  - **Zero-Fabrication Invariant:** All factual findings and recommendations must link to valid evidence IDs verified against the immutable `EvidenceStore`.
+  - **Zero-Network Invariant:** Capable of running in fully offline / air-gapped test and review environments without API keys or external telemetry dependencies.
+  - **Human Review Simulation:** The frontend provides a safe, clearly labeled simulation of internal decision sign-off without executing arbitrary unverified backend mutations.
 
 ---
 

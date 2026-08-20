@@ -1,9 +1,12 @@
 """Integration tests for investigation synthesis service and API."""
 
+from pathlib import Path
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from src.api.main import app
-from src.config.settings import PROJECT_ROOT
+from src.config.settings import PROJECT_ROOT, settings
+from src.data import database
 from src.data.seed_database import seed_enterprise_database
 from src.investigation.audit import AuditEventType
 from src.investigation.models import InvestigationRequest
@@ -116,18 +119,53 @@ def test_synthesis_malformed_json_handling(seeded_registry):
 @pytest.mark.anyio
 async def test_api_investigate_endpoint():
     """Test the POST /investigations/investigate FastAPI endpoint."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        payload = {
-            "question": "Why did customer cancellations increase sharply in September 2025?",
-            "investigation_id": "INV-API-TEST-001",
-        }
-        response = await client.post("/investigations/investigate", json=payload)
-        assert response.status_code == 200
-        data = response.json()
-        assert "run_result" in data
-        assert "report" in data
-        assert data["report"]["citation_valid"] is True
-        assert data["report"]["root_cause"] is not None
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            payload = {
+                "question": "Why did customer cancellations increase sharply in September 2025?",
+                "investigation_id": "INV-API-TEST-001",
+            }
+            response = await client.post("/investigations/investigate", json=payload)
+            assert response.status_code == 200
+            data = response.json()
+            assert "run_result" in data
+            assert "report" in data
+            assert data["report"]["citation_valid"] is True
+            assert data["report"]["root_cause"] is not None
+
+
+@pytest.mark.anyio
+async def test_api_startup_initializes_configured_empty_database(tmp_path, monkeypatch):
+    """Verify startup seeds an existing empty configured SQLite file and readiness validates schema."""
+    db_path = Path(tmp_path) / "configured-empty.db"
+    db_path.touch()
+    db_url = f"sqlite:///{db_path}"
+    monkeypatch.setattr(settings, "database_url", db_url)
+    database._engine = None
+    database._SessionFactory = None
+
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            ready_response = await client.get("/ready")
+            investigation_response = await client.post(
+                "/investigations/investigate",
+                json={
+                    "question": "Why did customer cancellations increase sharply in September 2025?",
+                    "investigation_id": "INV-CONFIGURED-DB-001",
+                },
+            )
+
+    assert ready_response.status_code == 200
+    assert ready_response.json()["schema"] == "valid"
+    assert investigation_response.status_code == 200
+    data = investigation_response.json()
+    assert data["run_result"]["status"] == "completed"
+    assert data["run_result"]["completed_steps"] > 0
+    assert len(data["evidence_items"]) > 0
+    assert data["report"]["root_cause"] is not None

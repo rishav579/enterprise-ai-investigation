@@ -48,7 +48,11 @@ class DocumentRetrievalTool(BaseTool):
         if "/" in document_id or "\\" in document_id or ".." in document_id or "\0" in document_id:
             raise PermissionError(f"Path traversal detected in document identifier: '{document_id}'")
 
-        resolved_target = (self.doc_dir / document_id).resolve()
+        candidate_path = self.doc_dir / document_id
+        if candidate_path.is_symlink():
+            raise PermissionError(f"Symlink document identifiers are not allowed: '{document_id}'")
+
+        resolved_target = candidate_path.resolve()
 
         # Verify that resolved path is inside doc_dir
         try:
@@ -88,12 +92,25 @@ class DocumentRetrievalTool(BaseTool):
             error=f"Unknown action: '{validated_input.action}'",
         )
 
+    def _safe_document_files(self) -> List[Path]:
+        """Return direct, regular document files whose resolved paths stay in doc_dir."""
+        safe_files: List[Path] = []
+        for doc_file in sorted(self.doc_dir.iterdir()):
+            if doc_file.is_symlink() or not doc_file.is_file():
+                continue
+            try:
+                resolved_file = doc_file.resolve(strict=True)
+                resolved_file.relative_to(self.doc_dir)
+            except (FileNotFoundError, ValueError):
+                continue
+            if resolved_file.suffix.lower() in (".md", ".txt", ".json"):
+                safe_files.append(resolved_file)
+        return safe_files
+
     def _handle_list(self) -> DocumentRetrievalResult:
         """List all available documents in the knowledge base directory."""
         try:
-            doc_files = sorted(
-                [p for p in self.doc_dir.glob("*") if p.is_file() and p.suffix.lower() in (".md", ".txt", ".json")]
-            )
+            doc_files = self._safe_document_files()
             doc_metas: List[DocumentMetadata] = []
             for doc_file in doc_files:
                 doc_metas.append(
@@ -164,9 +181,7 @@ class DocumentRetrievalTool(BaseTool):
         matches: List[DocumentMatch] = []
 
         try:
-            doc_files = sorted(
-                [p for p in self.doc_dir.glob("*") if p.is_file() and p.suffix.lower() in (".md", ".txt", ".json")]
-            )
+            doc_files = self._safe_document_files()
 
             for doc_file in doc_files:
                 with open(doc_file, "r", encoding="utf-8") as f:

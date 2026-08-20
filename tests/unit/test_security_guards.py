@@ -132,3 +132,45 @@ def test_document_tool_rejects_path_traversal(tmp_path, traversal_id):
             "outside allowed" in result.error or 
             "Input validation error" in result.error or
             "not found" in result.error)
+
+
+def test_document_tool_rejects_external_symlink_for_get_list_and_search(tmp_path):
+    """Verify symlinks cannot expose files outside the configured document directory."""
+    docs_dir = tmp_path / "safe_docs"
+    docs_dir.mkdir()
+    external_file = tmp_path / "outside.txt"
+    external_file.write_text("external-secret-marker", encoding="utf-8")
+    symlink_path = docs_dir / "linked.txt"
+    try:
+        symlink_path.symlink_to(external_file)
+    except OSError as exc:
+        pytest.skip(f"Symlinks are unavailable in this environment: {exc}")
+
+    tool = DocumentRetrievalTool(doc_dir=docs_dir)
+
+    get_result = tool.execute({"action": "get", "document_id": symlink_path.name})
+    list_result = tool.execute({"action": "list"})
+    search_result = tool.execute({"action": "search", "query": "external-secret-marker"})
+
+    assert get_result.success is False
+    assert "Symlink" in get_result.error
+    assert list_result.success is True
+    assert all(document.document_id != symlink_path.name for document in list_result.documents)
+    assert search_result.success is True
+    assert search_result.matches == []
+    assert "external-secret-marker" not in str(search_result.model_dump())
+
+
+def test_document_tool_allows_regular_files_inside_root(tmp_path):
+    """Verify the boundary fix does not block normal in-root documents."""
+    docs_dir = tmp_path / "safe_docs"
+    docs_dir.mkdir()
+    safe_file = docs_dir / "safe.txt"
+    safe_file.write_text("internal-marker", encoding="utf-8")
+
+    tool = DocumentRetrievalTool(doc_dir=docs_dir)
+    result = tool.execute({"action": "search", "query": "internal-marker"})
+
+    assert result.success is True
+    assert len(result.matches) == 1
+    assert result.matches[0].document_id == safe_file.name

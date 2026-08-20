@@ -10,7 +10,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from src.config.settings import PROJECT_ROOT, settings
-from src.data.database import get_db_session
+from src.data.database import (
+    get_db_session,
+    get_missing_tables,
+    validate_database_schema,
+)
 from src.investigation.audit import AuditEvent
 from src.investigation.evidence import EvidenceItem
 from src.investigation.models import InvestigationRequest, InvestigationRunResult
@@ -23,14 +27,15 @@ from src.tools.registry import create_default_tool_registry
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifespan handler."""
-    # Ensure database is seeded on startup if database file is missing
-    db_file = PROJECT_ROOT / "data" / "enterprise.db"
-    if not db_file.exists():
-        try:
+    try:
+        # Inspect the configured database, not a hard-coded project-root path.
+        # A missing or empty SQLite file has no application tables and is seeded.
+        if get_missing_tables(settings.database_url):
             from src.data.seed_database import seed_enterprise_database
-            seed_enterprise_database()
-        except Exception:
-            pass
+            seed_enterprise_database(db_url=settings.database_url)
+        validate_database_schema(settings.database_url)
+    except Exception as exc:
+        raise RuntimeError(f"Database initialization failed: {exc}") from exc
     yield
 
 
@@ -74,22 +79,27 @@ async def health_check() -> dict:
 
 @app.get("/ready")
 async def readiness_check() -> dict:
-    """Readiness check endpoint verifying database connectivity and system state."""
+    """Readiness check endpoint verifying connectivity and the full application schema."""
+    session = None
     try:
-        session = get_db_session()
+        validate_database_schema(settings.database_url)
+        session = get_db_session(settings.database_url)
         session.execute(text("SELECT 1"))
-        session.close()
         return {
             "status": "ready",
             "database": "connected",
+            "schema": "valid",
             "app": settings.app_name,
             "version": settings.app_version,
         }
-    except Exception as e:
+    except Exception as exc:
         raise HTTPException(
             status_code=503,
-            detail=f"Database connectivity check failed: {str(e)}",
+            detail=f"Database readiness check failed: {exc}",
         )
+    finally:
+        if session is not None:
+            session.close()
 
 
 

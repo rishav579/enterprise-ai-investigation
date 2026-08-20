@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, Session
 from src.config.settings import settings
@@ -56,6 +56,24 @@ def reset_db(db_url: Optional[str] = None) -> None:
     engine = get_engine(db_url)
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+
+
+def get_missing_tables(db_url: Optional[str] = None) -> set[str]:
+    """Return application tables that are absent from the configured database."""
+    engine = get_engine(db_url)
+    existing_tables = set(inspect(engine).get_table_names())
+    required_tables = set(Base.metadata.tables.keys())
+    return required_tables - existing_tables
+
+
+def validate_database_schema(db_url: Optional[str] = None) -> None:
+    """Raise when the configured database does not contain the full application schema."""
+    missing_tables = sorted(get_missing_tables(db_url))
+    if missing_tables:
+        raise RuntimeError(
+            "Database schema is incomplete; missing required tables: "
+            + ", ".join(missing_tables)
+        )
 
 
 def execute_read_query(

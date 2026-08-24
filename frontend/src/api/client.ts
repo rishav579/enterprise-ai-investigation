@@ -16,6 +16,11 @@ const DEFAULT_API_BASE =
     ? 'http://localhost:8000'
     : '');
 
+// Optional shared API key for protected /investigations/* endpoints.
+// Baked in at build time via VITE_INVESTIGATION_API_KEY when the backend
+// sets INVESTIGATION_API_KEY. Empty/unset keeps requests header-free.
+const INVESTIGATION_API_KEY: string = import.meta.env.VITE_INVESTIGATION_API_KEY || '';
+
 export class ApiError extends Error {
   status: number;
   data?: unknown;
@@ -45,6 +50,7 @@ async function request<T>(
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        ...(INVESTIGATION_API_KEY ? { 'X-API-Key': INVESTIGATION_API_KEY } : {}),
         ...(options.headers || {}),
       },
     });

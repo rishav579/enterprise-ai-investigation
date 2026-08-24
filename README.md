@@ -1,7 +1,7 @@
 # Enterprise AI Investigation & Decision System
 
 > **Portfolio & Educational Disclaimer:**
-> This repository is an educational portfolio project simulating an enterprise-grade AI investigation and decision-support system. It demonstrates production-grade AI system architecture, safety guardrails, controlled tool execution, deterministic planning, evidence collection with integrity hashing, an immutable audit trail, and evidence-grounded report synthesis with strict citation validation. It does **not** claim real company usage, real customer data, or fabricated performance metrics.
+> This repository is an educational portfolio project simulating an enterprise-grade AI investigation and decision-support system. It demonstrates production-style AI system architecture, safety guardrails, controlled tool execution, deterministic planning, evidence collection with integrity hashing, an append-only, tamper-evident per-run audit trail (in-memory by design), and evidence-grounded report synthesis with strict citation validation. It does **not** claim real company usage, real customer data, or fabricated performance metrics.
 
 ---
 
@@ -69,7 +69,7 @@ Business Question
       │       Failed/blocked steps → ZERO evidence (no fabrication)
       │       Every EvidenceItem carries a SHA-256 content hash
       │
-      ├──→ [ AuditTrail ]         — append-only, immutable events
+      ├──→ [ AuditTrail ]         — append-only, tamper-evident events (in-memory per run)
       │       INVESTIGATION_STARTED → PLAN_CREATED
       │       STEP_STARTED → STEP_COMPLETED | STEP_FAILED | STEP_BLOCKED
       │       EVIDENCE_COLLECTED
@@ -134,7 +134,7 @@ The system includes a dedicated, responsive operations web interface built with 
 - **Evidence Inspector Drawer:** Deep inspection modal for raw SQL data grids, full document text excerpts, query provenance, and canonical SHA-256 tamper-evident hash validation.
 - **Synthesized Findings & Root Cause View:** Structured executive summary, primary root cause alert box, confidence badges (`HIGH`, `MEDIUM`, `LOW`), and strict `100% Verified` citation tokens.
 - **Human Review Simulation:** Explicit simulated human authorization workflow ("Approve", "Reject", "Request More Evidence") with review logs and timestamped reviewer notes.
-- **Immutable Audit Log Stream:** Filterable chronological stream of lifecycle transitions (`INVESTIGATION_STARTED`, `PLAN_CREATED`, `STEP_COMPLETED`, `EVIDENCE_COLLECTED`, `SYNTHESIS_VALIDATED`).
+- **Append-Only Audit Log Stream:** Filterable chronological stream of lifecycle transitions (`INVESTIGATION_STARTED`, `PLAN_CREATED`, `STEP_COMPLETED`, `EVIDENCE_COLLECTED`, `SYNTHESIS_VALIDATED`).
 
 ---
 
@@ -150,7 +150,7 @@ pip install -e ".[dev]"
 # Seed the enterprise SQLite database
 python -m src.data.seed_database
 
-# Run complete backend pytest suite (197 tests)
+# Run complete backend pytest suite (207 tests collected — 206 passed, 1 skipped)
 python -m pytest
 
 # Run offline golden evaluation benchmark runner (6/6 passing)
@@ -234,6 +234,8 @@ Configuration parameters are managed via environment variables (or `.env` file):
 | `APP_RANDOM_SEED` | `42` | Deterministic random seed for synthetic dataset generation |
 | `APP_SYNTHETIC_CUSTOMER_COUNT` | `500` | Number of synthetic customers generated |
 | `APP_CORS_ORIGINS` | `http://localhost:5173,...` | Comma-separated list of allowed CORS origins, or `*` |
+| `INVESTIGATION_API_KEY` | unset (open) | When set, `/investigations/*` requests require a matching `X-API-Key` header (401 otherwise). Unset keeps development/demo mode open. |
+| `VITE_INVESTIGATION_API_KEY` | `""` | Frontend build-time copy of the API key, sent as `X-API-Key` when non-empty |
 | `VITE_API_BASE_URL` | `""` (same origin) | Frontend API endpoint URL override for decoupled hosting |
 
 ---
@@ -242,6 +244,17 @@ Configuration parameters are managed via environment variables (or `.env` file):
 
 - **Liveness Health Check:** `GET /health` &rarr; Returns `{"status": "ok"}` (HTTP 200).
 - **Readiness Health Check:** `GET /ready` &rarr; Verifies active database connection and system readiness (HTTP 200).
+- Both endpoints are intentionally **unauthenticated** for platform health probes.
+
+### 🔐 Investigation API Protection
+
+All `/investigations/*` endpoints (`scenarios`, `evaluation/latest`, `investigate`) support simple shared-key protection:
+
+- Set the backend environment variable `INVESTIGATION_API_KEY` to enable it.
+- Requests must then include a matching `X-API-Key` header; missing or incorrect keys receive **HTTP 401**.
+- If the variable is unset/empty, the endpoints remain open (development/demo mode).
+- The frontend sends the key automatically when built with `VITE_INVESTIGATION_API_KEY`.
+- Comparison is timing-safe (`secrets.compare_digest`); no user/account system is introduced.
 
 ---
 
@@ -264,18 +277,19 @@ python run_evaluation.py
 
 ## ⚠️ Current Status & Architecture Invariants
 
-- **Current Phase:** `Phase 8 — Production Deployment` (Completed & Verified)
+- **Current Phase:** `Phase 8 — Production Deployment` (Completed — containerized deployment verified in demo environments; **not fully production-hardened**: no real LLM provider, in-memory per-run audit/evidence, single-node SQLite)
 - **Next Phase:** `Phase 9 — Portfolio Finalization` (Planned)
 - **Verification & Test Status:**
-  - Backend: 197/197 tests passing (`python -m pytest`)
+  - Backend: 207 tests collected — 206 passed, 1 skipped (`python -m pytest`)
   - Frontend: 32/32 tests passing across 8 suites (`npm test`)
   - Evaluation Harness: 6/6 golden evaluation scenarios passing (`python run_evaluation.py`)
   - Production Bundle: `npm run build` cleanly compiled with TypeScript checks
   - Local Production Verification: 8/8 end-to-end smoke checks passing against unified port 8000
+  - Continuous Integration: GitHub Actions (`.github/workflows/ci.yml`) runs the backend suite (Python 3.12 & 3.14), frontend tests + build, and the golden evaluation on every push to `main` and every pull request
 - **Current Limitations & Operational Boundaries:**
   - **Deployment Readiness:** Dockerfile, `docker-compose.yml`, environment templates, and unified static SPA hosting are verified locally. Cloud hosting on public platforms (e.g. Render, Railway, Fly.io, AWS) requires external account provisioning.
   - **Offline Provider:** Grounded synthesis utilizes the deterministic offline `MockLLMProvider` (pluggable for enterprise OpenAI/Anthropic SDK adapters).
-  - **Zero-Fabrication Invariant:** All factual findings and recommendations must link to valid evidence IDs verified against the immutable `EvidenceStore`.
+  - **Zero-Fabrication Invariant:** All factual findings and recommendations must link to valid evidence IDs verified against the append-only, hash-verified `EvidenceStore`.
   - **Zero-Network Invariant:** Capable of running in fully offline / air-gapped test and review environments without API keys or external telemetry dependencies.
   - **Human Review Simulation:** The frontend provides a safe, clearly labeled simulation of internal decision sign-off without executing arbitrary unverified backend mutations.
 

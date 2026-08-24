@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import List, Optional
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 # Base repository root directory
@@ -37,6 +37,14 @@ class Settings(BaseSettings):
 
     # Static frontend directory override (optional)
     frontend_dist_dir: Optional[str] = None
+
+    # API key required in the 'X-API-Key' header for /investigations/* endpoints.
+    # When unset or empty, investigation endpoints are open (development/demo mode).
+    investigation_api_key: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("INVESTIGATION_API_KEY", "APP_INVESTIGATION_API_KEY"),
+        description="API key required for /investigations/* endpoints; unset disables protection",
+    )
 
     @property
     def allowed_cors_origins(self) -> list[str]:

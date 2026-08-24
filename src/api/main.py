@@ -1,10 +1,11 @@
 """FastAPI application entrypoint for Enterprise AI Investigation System."""
 
 import json
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -63,6 +64,25 @@ class SynthesizeRequestPayload(BaseModel):
     scenario_hint: Optional[str] = Field(None)
 
 
+def require_investigation_api_key(
+    x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
+) -> None:
+    """Guard /investigations/* endpoints with an optional shared API key.
+
+    Behavior:
+      - INVESTIGATION_API_KEY unset/empty -> protection disabled (development/demo mode).
+      - Configured + matching 'X-API-Key' header  -> request proceeds.
+      - Configured + missing or incorrect header  -> HTTP 401.
+
+    '/health' and '/ready' intentionally remain unauthenticated for platform probes.
+    """
+    expected = settings.investigation_api_key
+    if not expected:
+        return
+    if x_api_key is None or not secrets.compare_digest(x_api_key, expected):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+
+
 class FullInvestigationResponse(BaseModel):
     """Combined response payload containing run results, report, evidence, and audit trail."""
     run_result: InvestigationRunResult
@@ -103,7 +123,7 @@ async def readiness_check() -> dict:
 
 
 
-@app.get("/investigations/scenarios")
+@app.get("/investigations/scenarios", dependencies=[Depends(require_investigation_api_key)])
 async def list_sample_scenarios() -> List[Dict[str, Any]]:
     """Return predefined golden demonstration and evaluation scenarios."""
     return [
@@ -152,7 +172,10 @@ async def list_sample_scenarios() -> List[Dict[str, Any]]:
     ]
 
 
-@app.get("/investigations/evaluation/latest")
+@app.get(
+    "/investigations/evaluation/latest",
+    dependencies=[Depends(require_investigation_api_key)],
+)
 async def get_latest_evaluation() -> Dict[str, Any]:
     """Return the latest offline evaluation report if generated."""
     report_path = PROJECT_ROOT / "evaluation_reports" / "latest_evaluation.json"
@@ -165,7 +188,11 @@ async def get_latest_evaluation() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to read evaluation report: {str(e)}")
 
 
-@app.post("/investigations/investigate", response_model=FullInvestigationResponse)
+@app.post(
+    "/investigations/investigate",
+    response_model=FullInvestigationResponse,
+    dependencies=[Depends(require_investigation_api_key)],
+)
 async def run_full_investigation(payload: SynthesizeRequestPayload) -> FullInvestigationResponse:
     """Execute end-to-end investigation: plan -> tools -> evidence -> synthesis."""
     try:

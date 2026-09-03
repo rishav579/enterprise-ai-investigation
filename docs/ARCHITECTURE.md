@@ -29,16 +29,16 @@ Unlike conversational chatbots that generate unverified narrative text, this sys
 |                        INVESTIGATION ORCHESTRATION LAYER                          |
 |                                                                                   |
 |  +---------------------------+             +----------------------------------+   |
-|  |   Investigation Planner   | <---------> |    Provider-Agnostic LLM Client  |   |
-|  |   (Deconstructs inquiry   |             | (OpenAI / Anthropic / Ollama)    |   |
-|  |    into discrete steps)   |             +----------------------------------+   |
-|  +-------------+-------------+                                                    |
+|  |   Investigation Planner   | <---------> |       Mock LLM Provider          |   |
+|  |   (Deterministic rule-     |             | (Deterministic & offline; real   |   |
+|  |    based scenario planner)|             |  OpenAI/Anthropic/Ollama planned)|   |
+|  +-------------+-------------+             +----------------------------------+   |
 |                |                                                                  |
 |                v                                                                  |
 |  +---------------------------+             +----------------------------------+   |
 |  |   Controlled Tool Engine  | ----------> |          Audit Logger            |   |
-|  |   - Schema validation     |             | (Immutable trace of every        |   |
-|  |   - Execution dispatch    |             |  step, tool, input & output)     |   |
+|  |   - Schema validation     |             | (In-memory trace per run;        |   |
+|  |   - Execution dispatch    |             |  persistent storage planned)     |   |
 |  +-------------+-------------+             +----------------------------------+   |
 +----------------|------------------------------------------------------------------+
                  |
@@ -47,9 +47,9 @@ Unlike conversational chatbots that generate unverified narrative text, this sys
                  v                       v                       v
 +--------------------------------+ +--------------------+ +-------------------------+
 |        READ-ONLY SQL TOOL      | | DOCUMENT RETRIEVAL | |    OPTIONAL DOMAIN      |
-| - AST Query Validation         | | - Vector Search    | |      API TOOLS          |
-| - Read-Only DB Connection Pool | | - FTS Search       | | - External CRM / ERP    |
-| - Schema Catalog Introspection | | - Policy & KB Docs | |   (Mocked Sandbox)      |
+| - Lexical Token Validation     | | - Keyword Search   | |      API TOOLS          |
+| - Read-Only DB Connection Pool | | - Exact Excerpts   | | - External CRM / ERP    |
+| - Schema Catalog Introspection | | - Policy & KB Docs | |   (Planned)             |
 +----------------+---------------+ +---------+----------+ +------------+------------+
                  |                           |                         |
                  +---------------------------+-------------------------+
@@ -88,8 +88,9 @@ Unlike conversational chatbots that generate unverified narrative text, this sys
 
 ### 3.2. Investigation Planner & Orchestrator
 - Receives the business question (e.g., *"Why did churn increase in enterprise accounts during Q3?"*).
-- Breaks the inquiry into distinct hypotheses and sub-goals.
-- Evaluates intermediate evidence after each tool step to determine whether to terminate or investigate further (bounded by max steps to prevent infinite loops).
+- Breaks the inquiry into distinct hypotheses and sub-goals using deterministic rule-based scenario matching.
+- Evaluates step dependencies to execute tools in structured order (bounded by `max_steps` to prevent infinite loops).
+- *Dynamic LLM-driven planning is planned for future phases.*
 
 ### 3.3. Investigation Planning & Orchestration Layer (Phase 3 — Implemented)
 
@@ -117,14 +118,14 @@ The Phase 3 layer provides deterministic investigation planning and orchestratio
 - Operates on SQLite for lightweight, reproducible local development while maintaining full compatibility with PostgreSQL for production deployments.
 
 ### 3.5. Read-Only SQL Tool
-- **Schema Catalog:** Injects controlled table definitions and column descriptions into the model prompt.
-- **AST Parsing & Validation:** Uses SQL parsing (e.g., via `sqlglot`) to verify that incoming SQL statements are strictly `SELECT` statements without data mutation keywords (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `GRANT`).
-- **Connection Isolation:** Executes against a read-only database session with statement timeouts and maximum row limit caps (e.g., 100 rows per query).
+- **Schema Catalog:** Injects controlled table definitions and column descriptions into system schemas.
+- **Lexical Token & Keyword Validation:** Strips comments and inspects keyword tokens (`sanitize_and_tokenize_sql`) to verify that incoming SQL statements strictly start with `SELECT` or `WITH` and contain no data mutation keywords (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `GRANT`, `PRAGMA`, etc.) or multi-statement semicolons. (*SQL AST parsing via sqlglot is planned for future phases.*)
+- **Connection Isolation:** Executes against a read-only database connection with maximum row limit caps (e.g., 100 rows per query).
 
 ### 3.6. Document & Knowledge Retrieval Tool
-- Searches internal policies, postmortems, standard operating procedures, and product memos.
-- Employs hybrid retrieval (Vector semantic similarity + Full-Text Search / FTS) to locate relevant passages.
-- Returns explicit text chunks with document titles, section headers, and file paths for verifiable citations.
+- Searches internal policies, postmortems, standard operating procedures, and product memos stored as markdown files in `data/raw`.
+- Employs exact and substring keyword search (`search`), path-traversal-validated document text retrieval (`get`), and directory listing (`list`). (*Vector search and Full-Text Search / FTS indexes are planned for future phases.*)
+- Returns explicit text chunks with document titles and file paths for verifiable citations.
 
 ### 3.7. Evidence Collection Engine (Phase 4 — Implemented)
 
@@ -167,7 +168,7 @@ The Phase 5 synthesis layer converts collected investigation evidence into an au
 
 **`LLMProvider` & `MockLLMProvider`:**
 - Abstract provider interface decoupled from vendor-specific libraries.
-- Default `MockLLMProvider` is deterministic and fully offline (zero API keys required).
+- Default `MockLLMProvider` is deterministic and fully offline (zero API keys required). Real LLM integrations (OpenAI / Anthropic / Ollama) are planned for future phases.
 - Resilient against prompt injection embedded within retrieved document content.
 
 **`PromptBuilder` & Data Boundaries:**
@@ -192,7 +193,7 @@ The Phase 5 synthesis layer converts collected investigation evidence into an au
 
 ### 3.10. Audit Trail & Reproducibility (Phases 4 & 5 — Implemented)
 
-**`AuditTrail`** — append-only lifecycle log (per investigation run):
+**`AuditTrail`** — append-only lifecycle log (in-memory per investigation run; persistent database storage is planned for future phases):
 - Records `AuditEvent` instances with deterministic sequence numbers (`AUDIT-NNN`).
 - Events are **immutable** (`frozen=True`): once recorded they cannot be mutated.
 - Event types: `INVESTIGATION_STARTED`, `PLAN_CREATED`, `STEP_STARTED`, `STEP_COMPLETED`, `STEP_FAILED`, `STEP_BLOCKED`, `EVIDENCE_COLLECTED`, `INVESTIGATION_COMPLETED`, `INVESTIGATION_PARTIAL`, `INVESTIGATION_FAILED`, `SYNTHESIS_STARTED`, `SYNTHESIS_GENERATED`, `SYNTHESIS_VALIDATED`, `SYNTHESIS_FAILED`.
@@ -233,6 +234,10 @@ The system supports both distributed decoupled hosting and unified single-contai
 - **Dynamic CORS Middleware:** Configurable via `APP_CORS_ORIGINS` to allow secure cross-origin requests from decoupled frontends (e.g. Vercel, Netlify) or internal corporate proxies.
 
 ### 3.15. Future Scaling Path
+- **Dynamic LLM Planning & Synthesis Providers:** Real OpenAI, Anthropic, and Ollama client implementations with dynamic investigation planning.
+- **Advanced Document Retrieval:** Vector semantic similarity search and Full-Text Search (FTS) indexers.
+- **SQL AST Parsing:** Abstract Syntax Tree query parsing with `sqlglot` for deeper syntax verification.
+- **Persistent Audit & Evidence Storage:** Database-backed persistence for cross-run audit trails and historical evidence archives.
 - **Async Execution:** Celery or Redis-backed background worker queue for long-running investigations.
 - **Multi-Tenant Data Isolation:** Tenant-scoped database schemas and vector search namespaces.
 - **Enterprise RBAC:** Role-based access control governing which analysts can approve specific high-impact recommendations.

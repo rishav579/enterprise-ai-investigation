@@ -10,10 +10,10 @@ services:
       - APP_HOST=0.0.0.0
       - APP_PORT=8000
       - APP_DEBUG=false
-      - APP_DATABASE_URL=sqlite:///data/enterprise.db
+      - APP_DATABASE_URL=sqlite:///data/db/enterprise.db
       - APP_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000,http://127.0.0.1:3000
     volumes:
-      - sqlite_data:/app/data
+      - sqlite_data:/app/data/db
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 15s

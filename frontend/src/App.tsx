@@ -10,6 +10,7 @@ import { GuardrailsBanner } from './components/GuardrailsBanner';
 import { ErrorBanner } from './components/ErrorBanner';
 import { EmptyState } from './components/EmptyState';
 import { apiClient } from './api/client';
+import { NiftyWorkflow } from './nifty/NiftyWorkflow';
 import type {
   BackendHealthResponse,
   EvidenceItem,
@@ -37,6 +38,7 @@ export const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'audit'>('overview');
+  const [workspace, setWorkspace] = useState<'enterprise' | 'nifty'>('enterprise');
 
   // Check health on load
   const fetchHealthStatus = useCallback(async () => {
@@ -137,6 +139,61 @@ export const App: React.FC = () => {
         gap: '20px',
         flex: 1,
       }}>
+        {/* Workspace Switcher (enterprise untouched; NIFTY Lab is additive) */}
+        <div
+          role="tablist"
+          aria-label="Workspace selector"
+          style={{
+            display: 'flex',
+            gap: '8px',
+            backgroundColor: 'var(--bg-panel)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '8px',
+          }}
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workspace === 'enterprise'}
+            onClick={() => setWorkspace('enterprise')}
+            style={{
+              flex: 1,
+              backgroundColor: workspace === 'enterprise' ? 'var(--color-primary-bg)' : 'transparent',
+              color: workspace === 'enterprise' ? 'var(--color-primary)' : 'var(--text-secondary)',
+              border: workspace === 'enterprise' ? '1px solid var(--color-primary-border)' : '1px solid transparent',
+              borderRadius: 'var(--radius-md)',
+              padding: '8px 12px',
+              fontSize: '13px',
+              fontWeight: 600,
+            }}
+          >
+            Enterprise Investigation
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workspace === 'nifty'}
+            onClick={() => setWorkspace('nifty')}
+            style={{
+              flex: 1,
+              backgroundColor: workspace === 'nifty' ? 'var(--color-primary-bg)' : 'transparent',
+              color: workspace === 'nifty' ? 'var(--color-primary)' : 'var(--text-secondary)',
+              border: workspace === 'nifty' ? '1px solid var(--color-primary-border)' : '1px solid transparent',
+              borderRadius: 'var(--radius-md)',
+              padding: '8px 12px',
+              fontSize: '13px',
+              fontWeight: 600,
+            }}
+          >
+            NIFTY Dip-Buy Lab (synthetic mock)
+          </button>
+        </div>
+
+        {workspace === 'nifty' ? (
+          <NiftyWorkflow />
+        ) : (
+        <>
         {/* Guardrails Banner */}
         <GuardrailsBanner />
 
@@ -331,7 +388,10 @@ export const App: React.FC = () => {
           />
         ) : null}
 
-        {/* Evidence Inspector Drawer/Modal */}
+        </>
+        )}
+
+        {/* Evidence Inspector Drawer/Modal (enterprise only; NIFTY Lab never sets evidence selection) */}
         {selectedEvidenceId && (
           <EvidenceInspector
             evidenceItem={activeEvidenceItem}

@@ -23,6 +23,7 @@ from src.investigation.orchestrator import InvestigationOrchestrator
 from src.synthesis.models import InvestigationReport
 from src.synthesis.synthesizer import InvestigationSynthesizer
 from src.tools.registry import create_default_tool_registry
+from src.api.nifty_routes import router as nifty_router
 
 
 @asynccontextmanager
@@ -55,6 +56,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+# NIFTY dip-buy research prototype (additive; enterprise routes below are untouched).
+app.include_router(nifty_router)
 
 
 class SynthesizeRequestPayload(BaseModel):
